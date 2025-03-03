@@ -1,0 +1,98 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+yarn.lock
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.yarn-integrity
+
+# TypeScript/Build output
+/dist/
+/build/
+/out/
+.next/
+coverage/
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+*.js.map
+*.tgz
+
+# Caches
+.npm
+.eslintcache
+.stylelintcache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.development
+.env.test
+.env.production
+
+# Testing
+/coverage
+/coverage-ts
+.nyc_output
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# IDE - JetBrains
+.idea/
+*.iml
+*.iws
+.idea_modules/
+out/
+*.ipr
+
+# IDE - WebStorm
+.project
+.classpath
+*.launch
+.settings/
+*.sublime-workspace
+.history
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Misc
+.cache/
+.parcel-cache
+.cache-loader
+.temp
+.tmp
+.docz
+debug.log
+.turbo
+.vercel
+.netlify
+
+# Project specific (customize as needed)
+# /public/assets
+# /src/generated
