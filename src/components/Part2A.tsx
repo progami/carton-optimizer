@@ -66,6 +66,13 @@ const CostAnalysis = () => {
     total: '#f43f5e'        // Rose/red for total
   };
 
+  // Create custom pie chart data to avoid duplicate legend items
+  const pieChartData = [
+    { name: 'Carton Costs', value: analysisResults ? analysisResults.cartonCosts : 0, fill: colors.carton },
+    { name: 'Storage Costs', value: analysisResults ? analysisResults.storageCosts : 0, fill: colors.storage },
+    { name: 'Transport Costs', value: analysisResults ? analysisResults.transportCosts : 0, fill: colors.transport },
+  ];
+
   return (
     <>
       <div className="bg-white p-4 rounded-lg shadow-lg mb-6">
@@ -333,35 +340,43 @@ const CostAnalysis = () => {
         
         {/* Cost Breakdown Visualization */}
         <div className="bg-white p-4 border-2 border-gray-200 rounded-lg mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-700">Cost Breakdown for {costConfig.totalDemand.toLocaleString()} Units</h3>
-            <div className="bg-rose-100 p-2 rounded-lg text-right">
-              <div className="text-lg font-bold text-rose-800">
-                {analysisResults ? formatCurrency(analysisResults.totalCost) : '-'}
-                <span className="text-sm ml-1">total</span>
-              </div>
-              <div className="text-lg font-bold text-rose-800">
-                {analysisResults ? formatCurrency(analysisResults.costPerUnit) : '-'}
-                <span className="text-sm ml-1">per unit</span>
-              </div>
-            </div>
-          </div>
+          <h3 className="font-semibold text-gray-700 mb-4">Cost Breakdown for {costConfig.totalDemand.toLocaleString()} Units</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="text-center bg-gray-50 p-3 rounded-lg shadow-sm">
-              <div className="text-sm font-medium text-gray-700">Total Cartons</div>
-              <div className="text-xl font-medium mt-1">{analysisResults?.totalCartons ?? '-'}</div>
-            </div>
-            <div className="text-center bg-gray-50 p-3 rounded-lg shadow-sm">
-              <div className="text-sm font-medium text-gray-700">Total Pallets</div>
-              <div className="text-xl font-medium mt-1">{analysisResults ? Math.ceil(analysisResults.totalPallets) : '-'}</div>
-              <div className="text-xs text-gray-500">
-                ({analysisResults ? analysisResults.totalPallets.toFixed(1) : '-'} calculated, ceiling applied)
+          {/* Cost summary */}
+          <div className="mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-3 grid grid-cols-3 gap-4">
+                <div className="text-center bg-gray-50 p-2 rounded-lg shadow-sm">
+                  <div className="text-sm font-medium text-gray-700 mb-1">Total Cartons</div>
+                  <div className="text-xl font-medium">{analysisResults?.totalCartons ?? '-'}</div>
+                </div>
+                <div className="text-center bg-gray-50 p-2 rounded-lg shadow-sm">
+                  <div className="text-sm font-medium text-gray-700 mb-1">Total Pallets</div>
+                  <div className="text-xl font-medium">{analysisResults ? Math.ceil(analysisResults.totalPallets) : '-'}</div>
+                  <div className="text-xs text-gray-500">
+                    ({analysisResults ? analysisResults.totalPallets.toFixed(1) : '-'} calculated)
+                  </div>
+                </div>
+                <div className="text-center bg-gray-50 p-2 rounded-lg shadow-sm">
+                  <div className="text-sm font-medium text-gray-700 mb-1">Transport Mode</div>
+                  <div className="text-xl font-medium">{analysisResults?.transportMode ?? '-'}</div>
+                </div>
               </div>
-            </div>
-            <div className="text-center bg-gray-50 p-3 rounded-lg shadow-sm">
-              <div className="text-sm font-medium text-gray-700">Transport Mode</div>
-              <div className="text-xl font-medium mt-1">{analysisResults?.transportMode ?? '-'}</div>
+              
+              <div className="md:col-span-1 bg-rose-100 p-2 rounded-lg text-center flex flex-col justify-center">
+                <div>
+                  <div className="text-sm text-rose-800">Total Cost</div>
+                  <div className="text-xl font-bold text-rose-800">
+                    {analysisResults ? formatCurrency(analysisResults.totalCost) : '-'}
+                  </div>
+                </div>
+                <div className="mt-1">
+                  <div className="text-sm text-rose-800">Per Unit</div>
+                  <div className="text-xl font-bold text-rose-800">
+                    {analysisResults ? formatCurrency(analysisResults.costPerUnit) : '-'}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -469,11 +484,7 @@ const CostAnalysis = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={[
-                      { name: 'Carton Costs (C₁)', value: analysisResults ? analysisResults.cartonCosts : 0, fill: colors.carton },
-                      { name: 'Storage Costs (C₂)', value: analysisResults ? analysisResults.storageCosts : 0, fill: colors.storage },
-                      { name: 'Transport Costs (C₃)', value: analysisResults ? analysisResults.transportCosts : 0, fill: colors.transport },
-                    ]}
+                    data={pieChartData}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
@@ -522,118 +533,128 @@ const CostAnalysis = () => {
             </div>
           </div>
           
-          <div className="h-72 mb-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={scalingData}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="quantity"
-                  label={{ value: 'Quantity', position: 'insideBottomRight', offset: -10 }}
-                  tickFormatter={(value) => value.toLocaleString()}
-                />
-                <YAxis
-                  label={{ value: costConfig.showTotalCosts ? 'Total Cost (£)' : 'Cost per Unit (£)', angle: -90, position: 'insideLeft' }}
-                  tickFormatter={(value) => `£${value.toFixed(2)}`}
-                />
-                <Tooltip
-                  formatter={(value: number, name: string) => {
-                    if (typeof name === 'string') {
-                      if (name.includes("Carton")) {
-                        return [`£${value.toFixed(2)}`, name];
-                      } else if (name.includes("Storage")) {
-                        return [`£${value.toFixed(2)}`, name];
-                      } else if (name.includes("Transport")) {
-                        return [`£${value.toFixed(2)}`, name];
+          {/* Add a check for data and display placeholder if missing */}
+          {scalingData && scalingData.length > 0 ? (
+            <div className="h-72 mb-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={scalingData}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="quantity"
+                    label={{ value: 'Quantity', position: 'insideBottomRight', offset: -10 }}
+                    tickFormatter={(value) => value.toLocaleString()}
+                  />
+                  <YAxis
+                    label={{ value: costConfig.showTotalCosts ? 'Total Cost (£)' : 'Cost per Unit (£)', angle: -90, position: 'insideLeft' }}
+                    tickFormatter={(value) => `£${value.toFixed(2)}`}
+                  />
+                  <Tooltip
+                    formatter={(value: number, name: string) => {
+                      if (typeof name === 'string') {
+                        if (name.includes("Carton")) {
+                          return [`£${value.toFixed(2)}`, name];
+                        } else if (name.includes("Storage")) {
+                          return [`£${value.toFixed(2)}`, name];
+                        } else if (name.includes("Transport")) {
+                          return [`£${value.toFixed(2)}`, name];
+                        }
                       }
-                    }
-                    return [`£${value.toFixed(2)}`, name];
-                  }}
-                  labelFormatter={(value) => `Quantity: ${typeof value === 'number' ? value.toLocaleString() : value}`}
-                  contentStyle={{ border: '1px solid #ccc', borderRadius: '4px', padding: '8px' }}
-                />
-                <Legend />
+                      return [`£${value.toFixed(2)}`, name];
+                    }}
+                    labelFormatter={(value) => `Quantity: ${typeof value === 'number' ? value.toLocaleString() : value}`}
+                    contentStyle={{ border: '1px solid #ccc', borderRadius: '4px', padding: '8px' }}
+                  />
+                  <Legend />
 
-                {costConfig.showTotalCosts ? (
-                  // Total costs view
-                  <>
-                    <Line
-                      type="monotone"
-                      dataKey="totalCost"
-                      stroke={colors.total}
-                      strokeWidth={2}
-                      activeDot={{ r: 8 }}
-                      name="Total Cost"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="cartonCosts"
-                      stroke={colors.carton}
-                      activeDot={{ r: 6 }}
-                      name="C₁: Carton Costs"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="storageCosts"
-                      stroke={colors.storage}
-                      activeDot={{ r: 6 }}
-                      name="C₂: Storage Costs"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="transportCosts"
-                      stroke={colors.transport}
-                      activeDot={{ r: 6 }}
-                      name="C₃: Transport Costs"
-                    />
-                  </>
-                ) : (
-                  // Per-unit costs view
-                  <>
-                    <Line
-                      type="monotone"
-                      dataKey="costPerUnit"
-                      stroke={colors.total}
-                      strokeWidth={2}
-                      activeDot={{ r: 8 }}
-                      name="Total Cost per Unit"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey={(data) => data.cartonCosts / data.quantity}
-                      stroke={colors.carton}
-                      activeDot={{ r: 6 }}
-                      name="C₁: Carton Costs per Unit"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey={(data) => data.storageCosts / data.quantity}
-                      stroke={colors.storage}
-                      activeDot={{ r: 6 }}
-                      name="C₂: Storage Costs per Unit"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey={(data) => data.transportCosts / data.quantity}
-                      stroke={colors.transport}
-                      activeDot={{ r: 6 }}
-                      name="C₃: Transport Costs per Unit"
-                    />
-                  </>
-                )}
-                
-                {/* Add reference line for current quantity */}
-                <ReferenceLine
-                  x={costConfig.totalDemand}
-                  stroke="#f43f5e"
-                  strokeDasharray="3 3"
-                  label={{ value: 'Current Quantity', position: 'top', fill: '#f43f5e' }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+                  {costConfig.showTotalCosts ? (
+                    // Total costs view
+                    <>
+                      <Line
+                        type="monotone"
+                        dataKey="totalCost"
+                        stroke={colors.total}
+                        strokeWidth={2}
+                        activeDot={{ r: 8 }}
+                        name="Total Cost"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="cartonCosts"
+                        stroke={colors.carton}
+                        activeDot={{ r: 6 }}
+                        name="C₁: Carton Costs"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="storageCosts"
+                        stroke={colors.storage}
+                        activeDot={{ r: 6 }}
+                        name="C₂: Storage Costs"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="transportCosts"
+                        stroke={colors.transport}
+                        activeDot={{ r: 6 }}
+                        name="C₃: Transport Costs"
+                      />
+                    </>
+                  ) : (
+                    // Per-unit costs view
+                    <>
+                      <Line
+                        type="monotone"
+                        dataKey="costPerUnit"
+                        stroke={colors.total}
+                        strokeWidth={2}
+                        activeDot={{ r: 8 }}
+                        name="Total Cost per Unit"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey={(data) => data.cartonCosts / data.quantity}
+                        stroke={colors.carton}
+                        activeDot={{ r: 6 }}
+                        name="C₁: Carton Costs per Unit"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey={(data) => data.storageCosts / data.quantity}
+                        stroke={colors.storage}
+                        activeDot={{ r: 6 }}
+                        name="C₂: Storage Costs per Unit"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey={(data) => data.transportCosts / data.quantity}
+                        stroke={colors.transport}
+                        activeDot={{ r: 6 }}
+                        name="C₃: Transport Costs per Unit"
+                      />
+                    </>
+                  )}
+                  
+                  {/* Add reference line for current quantity */}
+                  <ReferenceLine
+                    x={costConfig.totalDemand}
+                    stroke="#f43f5e"
+                    strokeDasharray="3 3"
+                    label={{ value: 'Current Quantity', position: 'top', fill: '#f43f5e' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-72 mb-4 flex items-center justify-center bg-gray-50 rounded-lg">
+              <div className="text-center text-gray-500">
+                <p className="text-lg">No data available for charting</p>
+                <p className="text-sm mt-2">Try selecting a different carton configuration or adjusting parameters</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>
