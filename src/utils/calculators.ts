@@ -1,7 +1,94 @@
 // src/utils/calculators.ts
 
+// Define types for carton and cost config
+interface CartonType {
+  id: number;
+  length: number;
+  width: number;
+  height: number;
+  unitsPerCarton: number;
+  cartonsPerPallet: number;
+  isSelected: boolean;
+}
+
+interface CostConfigType {
+  provider: string;
+  cartonHandlingCost: number;
+  cartonUnloadingCost: number;
+  palletStorageCostPerWeek: number;
+  storageWeeks: number;
+  palletHandlingCost: number;
+  ltlCostPerPallet: number;
+  ftlCostPerTruck: number;
+  palletsPerTruck: number;
+  totalDemand: number;
+  transportMode: 'auto' | 'ltl' | 'ftl';
+  showTotalCosts: boolean;
+}
+
+// Define the cost calculation result type
+interface CostCalculationResult {
+  quantity: number;
+  totalCartons: number;
+  totalPallets: number;
+  cartonCosts: number;
+  storageCosts: number;
+  palletHandlingCosts: number;
+  transportCosts: number;
+  totalCost: number;
+  costPerUnit: number;
+  cartonCostPerUnit: number;
+  storageCostPerUnit: number;
+  transportCostPerUnit: number;
+  ltlCost: number;
+  ftlCost: number;
+  transportMode: string;
+  carton: CartonType;
+  cartonCostPercentage: number;
+  storageCostPercentage: number;
+  transportCostPercentage: number;
+}
+
+// Define comparative data result type
+interface ComparativeDataResult extends CostCalculationResult {
+  cartonId: number;
+  dimensions: string;
+  unitsPerCarton: number;
+  cartonsPerPallet: number;
+}
+
+// Define optimal config result type
+interface OptimalConfigResult {
+  quantity: number;
+  optimalCartonId: number;
+  dimensions: string;
+  costPerUnit: number;
+}
+
+// Define cost components data type
+interface CostComponentsData {
+  quantity: number;
+  cartonCosts: number;
+  storageCosts: number;
+  transportCosts: number;
+  totalCost: number;
+  totalPallets: number;
+}
+
+// Define comparative curves entry type
+interface ComparativeCurveEntry {
+  quantity: number;
+  [key: string]: number | string;
+}
+
 // Calculate cost for a given quantity and carton configuration
-export const calculateCostComponents = (quantity, cartonId, selectedCartonId, candidateCartons, costConfig) => {
+export const calculateCostComponents = (
+  quantity: number, 
+  cartonId: number | null, 
+  selectedCartonId: number, 
+  candidateCartons: CartonType[], 
+  costConfig: CostConfigType
+): CostCalculationResult | null => {
   // Find the carton configuration
   const selectedCarton = candidateCartons.find(c => c.id === (cartonId || selectedCartonId));
   if (!selectedCarton) return null;
@@ -96,8 +183,14 @@ export const calculateCostComponents = (quantity, cartonId, selectedCartonId, ca
 };
 
 // Generate scaling data for analysis
-export const generateScalingData = (maxQuantity, cartonId, selectedCartonId, candidateCartons, costConfig) => {
-  const data = [];
+export const generateScalingData = (
+  maxQuantity: number, 
+  cartonId: number | null, 
+  selectedCartonId: number, 
+  candidateCartons: CartonType[], 
+  costConfig: CostConfigType
+): CostCalculationResult[] => {
+  const data: CostCalculationResult[] = [];
   const selectedCarton = candidateCartons.find(c => c.id === (cartonId || selectedCartonId));
   if (!selectedCarton) return data;
 
@@ -121,7 +214,12 @@ export const generateScalingData = (maxQuantity, cartonId, selectedCartonId, can
 };
 
 // Generate data for quantity intervals
-export const generateIntervalData = (cartonId, selectedCartonId, candidateCartons, costConfig) => {
+export const generateIntervalData = (
+  cartonId: number | null, 
+  selectedCartonId: number, 
+  candidateCartons: CartonType[], 
+  costConfig: CostConfigType
+): (CostCalculationResult | null)[] => {
   const quantityIntervals = [1000, 5000, 10000, 20000, 50000];
   return quantityIntervals.map(quantity =>
     calculateCostComponents(quantity, cartonId, selectedCartonId, candidateCartons, costConfig)
@@ -129,9 +227,19 @@ export const generateIntervalData = (cartonId, selectedCartonId, candidateCarton
 };
 
 // Generate comparative data across all carton configurations
-export const generateComparativeData = (quantity, candidateCartons, costConfig) => {
+export const generateComparativeData = (
+  quantity: number, 
+  candidateCartons: CartonType[], 
+  costConfig: CostConfigType
+): ComparativeDataResult[] => {
   return candidateCartons.map(carton => {
     const costData = calculateCostComponents(quantity, carton.id, carton.id, candidateCartons, costConfig);
+    if (!costData) {
+      // This should never happen since we're iterating over existing cartons,
+      // but TypeScript wants us to handle this case
+      throw new Error(`Failed to calculate costs for carton ${carton.id}`);
+    }
+    
     return {
       ...costData,
       cartonId: carton.id,
@@ -143,11 +251,18 @@ export const generateComparativeData = (quantity, candidateCartons, costConfig) 
 };
 
 // Find carton configuration with lowest cost at each quantity interval
-export const generateOptimalConfigByQuantity = (candidateCartons, costConfig) => {
+export const generateOptimalConfigByQuantity = (
+  candidateCartons: CartonType[], 
+  costConfig: CostConfigType
+): OptimalConfigResult[] => {
   const quantityIntervals = [1000, 5000, 10000, 20000, 50000];
   return quantityIntervals.map(quantity => {
     const comparisons = candidateCartons.map(carton => {
       const costData = calculateCostComponents(quantity, carton.id, carton.id, candidateCartons, costConfig);
+      if (!costData) {
+        throw new Error(`Failed to calculate costs for carton ${carton.id}`);
+      }
+      
       return {
         cartonId: carton.id,
         dimensions: `${carton.length}×${carton.width}×${carton.height}`,
@@ -172,7 +287,9 @@ export const generateOptimalConfigByQuantity = (candidateCartons, costConfig) =>
 };
 
 // Generate data for cost breakdown visualization
-export const generateCostComponentsData = (data) => {
+export const generateCostComponentsData = (
+  data: CostCalculationResult[]
+): CostComponentsData[] => {
   return data.map(item => ({
     quantity: item.quantity,
     cartonCosts: item.cartonCosts / item.quantity,
@@ -184,9 +301,12 @@ export const generateCostComponentsData = (data) => {
 };
 
 // Generate data for comparative cost curves
-export const generateComparativeCurves = (candidateCartons, costConfig) => {
+export const generateComparativeCurves = (
+  candidateCartons: CartonType[], 
+  costConfig: CostConfigType
+): ComparativeCurveEntry[] => {
   const maxQuantity = Math.max(costConfig.totalDemand * 2, 20000);
-  const data = [];
+  const data: ComparativeCurveEntry[] = [];
 
   // Calculate step sizes for each carton to avoid step function
   const stepSizes = candidateCartons.map(carton => {
@@ -203,7 +323,7 @@ export const generateComparativeCurves = (candidateCartons, costConfig) => {
   const step = Math.max(commonStep, Math.ceil(maxQuantity / numPoints / commonStep) * commonStep);
 
   for (let quantity = step; quantity <= maxQuantity; quantity += step) {
-    const entry = { quantity };
+    const entry: ComparativeCurveEntry = { quantity };
 
     candidateCartons.forEach(carton => {
       const costData = calculateCostComponents(quantity, carton.id, carton.id, candidateCartons, costConfig);

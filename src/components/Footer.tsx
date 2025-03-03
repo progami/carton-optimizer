@@ -1,7 +1,16 @@
 // src/components/Footer.tsx
-import React from 'react';
+import { FC } from 'react';
 
-const Footer = ({ activeSection, setActiveSection }) => {
+// Define the section types
+type SectionType = 'input' | 'part2a' | 'part2b';
+
+// Define the props interface
+interface FooterProps {
+  activeSection: SectionType;
+  setActiveSection: (section: SectionType) => void;
+}
+
+const Footer: FC<FooterProps> = ({ activeSection, setActiveSection }) => {
   return (
     <div className="bg-white p-4 rounded-lg shadow-lg">
       <div className="flex justify-between items-center">

@@ -1,5 +1,5 @@
 // src/components/App.tsx
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Header from './Header';
 import Navigation from './Navigation';
@@ -9,11 +9,14 @@ import CostOptimization from './Part2B';
 import Footer from './Footer';
 import { CartonProvider } from '../contexts/CartonContext';
 
+// Define the section type to match Navigation and Footer components
+type SectionType = 'input' | 'part2a' | 'part2b';
+
 // This component handles navigation and renders the appropriate content
 const AppContent = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeSection, setActiveSection] = useState('input');
+  const [activeSection, setActiveSection] = useState<SectionType>('input');
 
   // Update active section based on route
   useEffect(() => {
@@ -27,9 +30,8 @@ const AppContent = () => {
   }, [location.pathname]);
 
   // Handle navigation section change
-  const handleSectionChange = (section) => {
+  const handleSectionChange = (section: SectionType) => {
     setActiveSection(section);
-    
     // Navigate to the corresponding route
     if (section === 'input') {
       navigate('/input');
@@ -44,14 +46,12 @@ const AppContent = () => {
     <div className="p-4 w-full bg-gray-50">
       <Header />
       <Navigation activeSection={activeSection} setActiveSection={handleSectionChange} />
-      
       <Routes>
         <Route path="/" element={<Navigate to="/input" replace />} />
         <Route path="/input" element={<CandidateConfigurations />} />
         <Route path="/part2a" element={<CostAnalysis />} />
         <Route path="/part2b" element={<CostOptimization />} />
       </Routes>
-      
       <Footer activeSection={activeSection} setActiveSection={handleSectionChange} />
     </div>
   );

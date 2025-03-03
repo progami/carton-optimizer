@@ -1,31 +1,40 @@
-// src/components/Footer.tsx
-import React from 'react';
+// src/components/Navigation.tsx
+import { FC } from 'react';
 
-const Footer = ({ activeSection, setActiveSection }) => {
+// Define the section types
+type SectionType = 'input' | 'part2a' | 'part2b';
+
+// Define the props interface
+interface NavigationProps {
+  activeSection: SectionType;
+  setActiveSection: (section: SectionType) => void;
+}
+
+const Navigation: FC<NavigationProps> = ({ activeSection, setActiveSection }) => {
   return (
-    <div className="bg-white p-4 rounded-lg shadow-lg">
+    <div className="bg-white p-4 rounded-lg shadow-lg mb-4">
       <div className="flex justify-between items-center">
-        <div className="text-sm text-gray-500">
-          Carton Optimization System - Two-Part Analysis
+        <div className="text-lg font-semibold">
+          Carton Optimization System
         </div>
         <div className="flex space-x-4">
           <button
             onClick={() => setActiveSection('input')}
-            className={`px-3 py-1 rounded ${activeSection === 'input' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+            className={`px-4 py-2 rounded-md ${activeSection === 'input' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
-            Part 1: Input
+            Input
           </button>
           <button
             onClick={() => setActiveSection('part2a')}
-            className={`px-3 py-1 rounded ${activeSection === 'part2a' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:bg-gray-100'}`}
+            className={`px-4 py-2 rounded-md ${activeSection === 'part2a' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
-            Part 2A: Analysis
+            Analysis
           </button>
           <button
             onClick={() => setActiveSection('part2b')}
-            className={`px-3 py-1 rounded ${activeSection === 'part2b' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:bg-gray-100'}`}
+            className={`px-4 py-2 rounded-md ${activeSection === 'part2b' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
-            Part 2B: Optimization
+            Optimization
           </button>
         </div>
       </div>
@@ -33,4 +42,4 @@ const Footer = ({ activeSection, setActiveSection }) => {
   );
 };
 
-export default Footer;
+export default Navigation;

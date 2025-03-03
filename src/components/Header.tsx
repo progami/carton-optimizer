@@ -1,6 +1,4 @@
 // src/components/Header.tsx
-import React from 'react';
-
 const Header = () => {
   return (
     <div className="bg-gradient-to-r from-blue-600 to-indigo-800 p-4 rounded-lg shadow-lg mb-6 text-white">
