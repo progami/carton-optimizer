@@ -10,7 +10,7 @@ import {
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, ReferenceLine, ComposedChart,
-  Bar, Area, AreaChart, Pie
+  Bar, Area, AreaChart, Pie, PieChart
 } from 'recharts';
 
 const CostAnalysis = () => {
@@ -473,160 +473,139 @@ const CostAnalysis = () => {
         </div>
         
         {/* Cost Breakdown Visualization */}
-        <div className="bg-gray-50 p-4 rounded-lg mb-6">
-          <h3 className="font-semibold text-gray-700 mb-3">Cost Breakdown Visualization</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
-            {/* Cost Category Legend */}
-            <div className="bg-white p-3 rounded-lg shadow-sm">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Cost Categories</h4>
-              <div className="grid grid-cols-1 gap-2">
-                <div className="flex items-center">
-                  <div className="w-4 h-4 bg-cyan-500 mr-2"></div>
-                  <div>
-                    <div className="text-sm font-medium">Carton-Related Costs (C₁)</div>
-                    <div className="text-xs text-gray-500">Handling and unloading of individual cartons</div>
+          <div className="bg-white p-4 rounded-lg shadow-lg mb-6">
+            <h3 className="font-semibold text-gray-700 border-b pb-2 mb-3">Cost Breakdown Visualization for {costConfig.totalDemand.toLocaleString()} Units</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left side: Cost breakdown with bar charts */}
+              <div>
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-cyan-500 mr-2"></div>
+                      <span className="text-sm font-medium">Carton-Related Costs (C₁)</span>
+                    </div>
+                    <span className="text-sm font-medium">
+                      {analysisResults ? formatCurrency(analysisResults.cartonCosts) : '-'} 
+                      ({analysisResults ? `${analysisResults.cartonCostPercentage.toFixed(1)}%` : '0%'})
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-4">
+                    <div 
+                      className="bg-cyan-500 h-4 rounded-full" 
+                      style={{ width: `${analysisResults ? analysisResults.cartonCostPercentage : 0}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Handling and unloading of {analysisResults ? analysisResults.totalCartons.toLocaleString() : '-'} individual cartons
                   </div>
                 </div>
-                <div className="flex items-center">
-                  <div className="w-4 h-4 bg-green-500 mr-2"></div>
-                  <div>
-                    <div className="text-sm font-medium">Pallet-Related: Storage Costs (C₂)</div>
-                    <div className="text-xs text-gray-500">Warehousing costs for complete pallets over time</div>
+
+                {/* Pallet-related costs (combined storage + transport) */}
+                <div className="mb-1">
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-green-600 mr-2"></div>
+                      <span className="text-sm font-medium">Pallet-Related Costs (C₂+C₃)</span>
+                    </div>
+                    <span className="text-sm font-medium">
+                      {analysisResults ? formatCurrency(analysisResults.storageCosts + analysisResults.transportCosts) : '-'} 
+                      ({analysisResults ? `${(analysisResults.storageCostPercentage + analysisResults.transportCostPercentage).toFixed(1)}%` : '0%'})
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-4">
+                    <div 
+                      className="bg-green-600 h-4 rounded-full" 
+                      style={{ width: `${analysisResults ? (analysisResults.storageCostPercentage + analysisResults.transportCostPercentage) : 0}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Storage and transport for {analysisResults ? Math.ceil(analysisResults.totalPallets).toLocaleString() : '-'} pallets
                   </div>
                 </div>
-                <div className="flex items-center">
-                  <div className="w-4 h-4 bg-indigo-500 mr-2"></div>
-                  <div>
-                    <div className="text-sm font-medium">Pallet-Related: Transport Costs (C₃)</div>
-                    <div className="text-xs text-gray-500">LTL or FTL shipping and pallet handling</div>
+
+                {/* Breakdown of pallet-related costs */}
+                <div className="pl-6 mt-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-green-400 mr-2"></div>
+                      <span className="text-xs">Storage Costs</span>
+                    </div>
+                    <span className="text-xs">
+                      {analysisResults ? formatCurrency(analysisResults.storageCosts) : '-'} 
+                      ({analysisResults ? `${analysisResults.storageCostPercentage.toFixed(1)}%` : '0%'})
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-green-400 h-2 rounded-full" 
+                      style={{ width: `${analysisResults ? analysisResults.storageCostPercentage : 0}%` }}
+                    ></div>
+                  </div>
+
+                  <div className="flex justify-between items-center mt-2 mb-1">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-green-800 mr-2"></div>
+                      <span className="text-xs">Transport Costs ({analysisResults?.transportMode})</span>
+                    </div>
+                    <span className="text-xs">
+                      {analysisResults ? formatCurrency(analysisResults.transportCosts) : '-'} 
+                      ({analysisResults ? `${analysisResults.transportCostPercentage.toFixed(1)}%` : '0%'})
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-green-800 h-2 rounded-full" 
+                      style={{ width: `${analysisResults ? analysisResults.transportCostPercentage : 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Total costs */}
+                <div className="mt-4 pt-2 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Total Cost:</span>
+                    <span className="text-sm font-bold">
+                      {analysisResults ? formatCurrency(analysisResults.totalCost) : '-'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-sm font-medium">Cost per Unit:</span>
+                    <span className="text-sm font-bold">
+                      {analysisResults ? formatCurrency(analysisResults.costPerUnit) : '-'}
+                    </span>
                   </div>
                 </div>
               </div>
-            </div>
-            
-            {/* Cost Breakdown Panel */}
-            <div className="bg-white p-3 rounded-lg shadow-sm">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Cost Distribution</h4>
-              <div className="grid grid-cols-1 gap-2">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-cyan-500 mr-2"></div>
-                    <div className="text-sm">Carton Costs:</div>
-                  </div>
-                  <div className="text-sm font-medium">
-                    {analysisResults ? formatCurrency(analysisResults.cartonCosts) : '-'} ({analysisResults ? `${analysisResults.cartonCostPercentage.toFixed(1)}%` : '-'})
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-green-500 mr-2"></div>
-                    <div className="text-sm">Storage Costs:</div>
-                  </div>
-                  <div className="text-sm font-medium">
-                    {analysisResults ? formatCurrency(analysisResults.storageCosts) : '-'} ({analysisResults ? `${analysisResults.storageCostPercentage.toFixed(1)}%` : '-'})
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-indigo-500 mr-2"></div>
-                    <div className="text-sm">Transport Costs:</div>
-                  </div>
-                  <div className="text-sm font-medium">
-                    {analysisResults ? formatCurrency(analysisResults.transportCosts) : '-'} ({analysisResults ? `${analysisResults.transportCostPercentage.toFixed(1)}%` : '-'})
-                  </div>
-                </div>
-                <div className="flex justify-between items-center pt-2 border-t">
-                  <div className="text-sm font-medium">Total:</div>
-                  <div className="text-sm font-medium">
-                    {analysisResults ? formatCurrency(analysisResults.totalCost) : '-'} (100%)
-                  </div>
-                </div>
+
+              {/* Right side: Pie Chart */}
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Carton Costs (C₁)', value: analysisResults ? analysisResults.cartonCosts : 0, fill: '#0891b2' },
+                        { name: 'Storage Costs', value: analysisResults ? analysisResults.storageCosts : 0, fill: '#16a34a' },
+                        { name: 'Transport Costs', value: analysisResults ? analysisResults.transportCosts : 0, fill: '#15803d' },
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={80}
+                      label={({name, percent}) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                      dataKey="value"
+                    >
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value) => formatCurrency(value)}
+                      contentStyle={{ border: '1px solid #ccc', borderRadius: '4px', padding: '8px' }}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Pie Chart */}
-            <div className="h-64 bg-white rounded-lg p-3">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart
-                  data={[{
-                    name: 'Cost Components',
-                    cartonCosts: analysisResults ? analysisResults.cartonCostPercentage : 0,
-                    storageCosts: analysisResults ? analysisResults.storageCostPercentage : 0,
-                    transportCosts: analysisResults ? analysisResults.transportCostPercentage : 0,
-                  }]}
-                  margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
-                >
-                  <Tooltip 
-                    formatter={(value) => [`${value.toFixed(2)}%`, '']}
-                    labelFormatter={() => 'Cost distribution'}
-                    contentStyle={{ border: '1px solid #ccc', borderRadius: '4px', padding: '8px' }}
-                  />
-                  <Legend />
-                  <Pie
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    fill="#8884d8"
-                    label={({cx, cy, midAngle, innerRadius, outerRadius, percent, name}) => {
-                      const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                      const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
-                      const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
-                      return (
-                        <text
-                          x={x}
-                          y={y}
-                          fill="white"
-                          textAnchor="middle"
-                          dominantBaseline="central"
-                        >
-                          {`${(percent * 100).toFixed(1)}%`}
-                        </text>
-                      );
-                    }}
-                    data={[
-                      { name: 'C₁: Carton Costs', value: analysisResults ? analysisResults.cartonCostPercentage : 0, fill: '#0891b2' },
-                      { name: 'C₂: Pallet Storage', value: analysisResults ? analysisResults.storageCostPercentage : 0, fill: '#16a34a' },
-                      { name: 'C₃: Pallet Transport', value: analysisResults ? analysisResults.transportCostPercentage : 0, fill: '#4f46e5' },
-                    ]}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-            
-            {/* Bar Chart */}
-            <div className="h-64 bg-white rounded-lg p-3">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart
-                  data={[analysisResults].filter(Boolean)}
-                  margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
-                  layout="vertical"
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" tickFormatter={(value) => `£${value.toFixed(2)}`} />
-                  <YAxis type="category" dataKey="name" width={120} />
-                  <Tooltip 
-                    formatter={(value, name) => {
-                      if (name === "cartonCosts") return [`£${value.toFixed(2)} (Carton-Related)`, 'C₁: Carton Costs'];
-                      if (name === "storageCosts") return [`£${value.toFixed(2)} (Pallet-Related)`, 'C₂: Storage Costs'];
-                      if (name === "transportCosts") return [`£${value.toFixed(2)} (Pallet-Related)`, 'C₃: Transport Costs'];
-                      return [`£${value.toFixed(2)}`, name];
-                    }}
-                    contentStyle={{ border: '1px solid #ccc', borderRadius: '4px', padding: '8px' }}
-                  />
-                  <Legend />
-                  <Bar dataKey="cartonCosts" name="C₁: Carton Costs" stackId="a" fill="#0891b2" barSize={30} />
-                  <Bar dataKey="storageCosts" name="C₂: Pallet Storage" stackId="a" fill="#16a34a" barSize={30} />
-                  <Bar dataKey="transportCosts" name="C₃: Pallet Transport" stackId="a" fill="#4f46e5" barSize={30} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
 
         {/* Cost vs. Quantity Chart */}
         <div className="bg-gray-50 p-4 rounded-lg mb-6">
