@@ -1,18 +1,120 @@
 // src/contexts/CartonContext.tsx
 import React, { createContext, useState, useContext } from 'react';
 
-const CartonContext = createContext(null);
-const ProviderContext = createContext(null);
-const CostConfigContext = createContext(null);
+// Define types for our context objects
+type CartonType = {
+  id: number;
+  length: number;
+  width: number;
+  height: number;
+  unitsPerCarton: number;
+  cartonsPerPallet: number;
+  isSelected: boolean;
+};
 
-export const CartonProvider = ({ children }) => {
-  const [candidateCartons, setCandidateCartons] = useState([
+type NewCandidateType = {
+  length: number | string;
+  width: number | string;
+  height: number | string;
+  unitsPerCarton: number | string;
+  cartonsPerPallet: number | string;
+};
+
+// Define provider type - this is key to fixing the error
+type ProviderName = 'fmc' | 'vglobal' | '4as';
+
+// Define rate keys type
+type ProviderRateKey = 'cartonHandlingCost' | 'cartonUnloadingCost' | 'palletStorageCostPerWeek' | 
+                      'palletHandlingCost' | 'ltlCostPerPallet' | 'ftlCostPerTruck' | 'palletsPerTruck';
+
+// Define provider rate structure
+type ProviderRate = {
+  [key in ProviderRateKey]: number;
+};
+
+// Define full provider rates structure
+type ProviderRates = {
+  [key in ProviderName]: ProviderRate;
+};
+
+// Define cost config type
+type CostConfigType = {
+  provider: ProviderName;
+  cartonHandlingCost: number;
+  cartonUnloadingCost: number;
+  palletStorageCostPerWeek: number;
+  storageWeeks: number;
+  palletHandlingCost: number;
+  ltlCostPerPallet: number;
+  ftlCostPerTruck: number;
+  palletsPerTruck: number;
+  totalDemand: number;
+  transportMode: 'auto' | 'ltl' | 'ftl';
+  showTotalCosts: boolean;
+};
+
+// Define default values with proper function signatures
+const CartonContext = createContext<{
+  candidateCartons: CartonType[];
+  setCandidateCartons: (cartons: CartonType[]) => void;
+  toggleCandidateSelection: (id: number) => void;
+  getSelectedCartonId: () => number | null;
+  handleAddCandidate: (newCandidate: NewCandidateType, editMode: boolean, editCandidateId: number | null) => void;
+  handleEditCandidate: (id: number) => NewCandidateType | null;
+  handleDeleteCandidate: (id: number) => void;
+}>({
+  candidateCartons: [],
+  setCandidateCartons: () => {},
+  toggleCandidateSelection: () => {},
+  getSelectedCartonId: () => null,
+  handleAddCandidate: () => {},
+  handleEditCandidate: () => null,
+  handleDeleteCandidate: () => {}
+});
+
+// Define provider context with proper function signatures
+const ProviderContext = createContext<{
+  providerRates: ProviderRates;
+  setProviderRates: (rates: ProviderRates) => void;
+  handleProviderChange: (provider: ProviderName) => void;
+  updateProviderRate: (provider: ProviderName, rateKey: ProviderRateKey, value: number) => void;
+}>({
+  providerRates: {} as ProviderRates,
+  setProviderRates: () => {},
+  handleProviderChange: () => {},
+  updateProviderRate: () => {}
+});
+
+// Define cost config context
+const CostConfigContext = createContext<{
+  costConfig: CostConfigType;
+  setCostConfig: (config: CostConfigType | ((prevConfig: CostConfigType) => CostConfigType)) => void;
+}>({
+  costConfig: {
+    provider: 'fmc',
+    cartonHandlingCost: 0,
+    cartonUnloadingCost: 0,
+    palletStorageCostPerWeek: 0,
+    storageWeeks: 0,
+    palletHandlingCost: 0,
+    ltlCostPerPallet: 0,
+    ftlCostPerTruck: 0,
+    palletsPerTruck: 0,
+    totalDemand: 0,
+    transportMode: 'auto',
+    showTotalCosts: false
+  },
+  setCostConfig: () => {}
+});
+
+export const CartonProvider = ({ children }: { children: React.ReactNode }) => {
+  const [candidateCartons, setCandidateCartons] = useState<CartonType[]>([
     { id: 1, length: 40, width: 30, height: 20, unitsPerCarton: 6, cartonsPerPallet: 20, isSelected: false },
     { id: 2, length: 60, width: 40, height: 25, unitsPerCarton: 12, cartonsPerPallet: 12, isSelected: false },
     { id: 3, length: 45, width: 35, height: 30, unitsPerCarton: 9, cartonsPerPallet: 16, isSelected: true }
   ]);
 
-  const [providerRates, setProviderRates] = useState({
+  const [providerRates, setProviderRates] = useState<ProviderRates>({
     fmc: {
       cartonHandlingCost: 1.3,
       cartonUnloadingCost: 1.75,
@@ -42,7 +144,7 @@ export const CartonProvider = ({ children }) => {
     }
   });
 
-  const [costConfig, setCostConfig] = useState({
+  const [costConfig, setCostConfig] = useState<CostConfigType>({
     provider: 'fmc',
     cartonHandlingCost: 1.3,
     cartonUnloadingCost: 1.75,
@@ -58,7 +160,7 @@ export const CartonProvider = ({ children }) => {
   });
 
   // Toggle candidate selection
-  const toggleCandidateSelection = (id) => {
+  const toggleCandidateSelection = (id: number) => {
     setCandidateCartons(
       candidateCartons.map(carton => ({
         ...carton,
@@ -74,7 +176,7 @@ export const CartonProvider = ({ children }) => {
   };
 
   // Handle adding a new candidate
-  const handleAddCandidate = (newCandidate, editMode, editCandidateId) => {
+  const handleAddCandidate = (newCandidate: NewCandidateType, editMode: boolean, editCandidateId: number | null) => {
     if (editMode && editCandidateId !== null) {
       // Update existing candidate
       setCandidateCartons(
@@ -82,11 +184,11 @@ export const CartonProvider = ({ children }) => {
           carton.id === editCandidateId ?
           {
             ...carton,
-            length: parseFloat(newCandidate.length),
-            width: parseFloat(newCandidate.width),
-            height: parseFloat(newCandidate.height),
-            unitsPerCarton: parseInt(newCandidate.unitsPerCarton),
-            cartonsPerPallet: parseInt(newCandidate.cartonsPerPallet)
+            length: parseFloat(newCandidate.length as string),
+            width: parseFloat(newCandidate.width as string),
+            height: parseFloat(newCandidate.height as string),
+            unitsPerCarton: parseInt(newCandidate.unitsPerCarton as string),
+            cartonsPerPallet: parseInt(newCandidate.cartonsPerPallet as string)
           } : carton
         )
       );
@@ -97,11 +199,11 @@ export const CartonProvider = ({ children }) => {
         ...candidateCartons,
         {
           id: newId,
-          length: parseFloat(newCandidate.length),
-          width: parseFloat(newCandidate.width),
-          height: parseFloat(newCandidate.height),
-          unitsPerCarton: parseInt(newCandidate.unitsPerCarton),
-          cartonsPerPallet: parseInt(newCandidate.cartonsPerPallet),
+          length: parseFloat(newCandidate.length as string),
+          width: parseFloat(newCandidate.width as string),
+          height: parseFloat(newCandidate.height as string),
+          unitsPerCarton: parseInt(newCandidate.unitsPerCarton as string),
+          cartonsPerPallet: parseInt(newCandidate.cartonsPerPallet as string),
           isSelected: false
         }
       ]);
@@ -109,7 +211,7 @@ export const CartonProvider = ({ children }) => {
   };
 
   // Handle editing a candidate
-  const handleEditCandidate = (id) => {
+  const handleEditCandidate = (id: number): NewCandidateType | null => {
     const candidateToEdit = candidateCartons.find(c => c.id === id);
     if (candidateToEdit) {
       return {
@@ -124,7 +226,7 @@ export const CartonProvider = ({ children }) => {
   };
 
   // Handle deleting a candidate
-  const handleDeleteCandidate = (id) => {
+  const handleDeleteCandidate = (id: number) => {
     // Check if this is the selected carton
     const isSelected = candidateCartons.find(c => c.id === id)?.isSelected;
 
@@ -141,7 +243,7 @@ export const CartonProvider = ({ children }) => {
   };
 
   // Handle cost provider change
-  const handleProviderChange = (provider) => {
+  const handleProviderChange = (provider: ProviderName) => {
     // Update costConfig with the selected provider's rates
     setCostConfig(prevConfig => ({
       ...prevConfig,
@@ -157,12 +259,12 @@ export const CartonProvider = ({ children }) => {
   };
 
   // Update provider rates
-  const updateProviderRate = (provider, rateKey, value) => {
+  const updateProviderRate = (provider: ProviderName, rateKey: ProviderRateKey, value: number) => {
     setProviderRates(prevRates => ({
       ...prevRates,
       [provider]: {
         ...prevRates[provider],
-        [rateKey]: parseFloat(value)
+        [rateKey]: value
       }
     }));
 
@@ -170,7 +272,7 @@ export const CartonProvider = ({ children }) => {
     if (provider === costConfig.provider) {
       setCostConfig(prevConfig => ({
         ...prevConfig,
-        [rateKey]: parseFloat(value)
+        [rateKey]: value
       }));
     }
   };
