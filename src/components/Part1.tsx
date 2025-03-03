@@ -1,6 +1,15 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCarton } from '../contexts/CartonContext';
+
+// Define the type for candidate inputs
+interface CandidateInput {
+  length: number | string;
+  width: number | string;
+  height: number | string;
+  unitsPerCarton: number | string;
+  cartonsPerPallet: number | string;
+}
 
 const CandidateConfigurations = () => {
   const navigate = useNavigate();
@@ -12,7 +21,7 @@ const CandidateConfigurations = () => {
     handleDeleteCandidate
   } = useCarton();
 
-  const [newCandidate, setNewCandidate] = useState({
+  const [newCandidate, setNewCandidate] = useState<CandidateInput>({
     length: 0,
     width: 0,
     height: 0,
@@ -21,7 +30,7 @@ const CandidateConfigurations = () => {
   });
 
   const [editMode, setEditMode] = useState(false);
-  const [editCandidateId, setEditCandidateId] = useState(null);
+  const [editCandidateId, setEditCandidateId] = useState<number | null>(null);
 
   const cancelEdit = () => {
     setEditMode(false);
@@ -35,7 +44,7 @@ const CandidateConfigurations = () => {
     });
   };
 
-  const handleEdit = (id) => {
+  const handleEdit = (id: number) => {
     const candidateData = handleEditCandidate(id);
     if (candidateData) {
       setNewCandidate(candidateData);
@@ -61,7 +70,6 @@ const CandidateConfigurations = () => {
         <p className="text-sm text-gray-600 mb-4">
           Enter or import candidate carton configurations generated from CubeMaster analysis. These configurations will be used for cost function analysis.
         </p>
-
         <div className="mb-6">
           {/* Add/Edit Candidate */}
           <div className="bg-blue-50 p-4 rounded-lg mb-6">
@@ -134,7 +142,6 @@ const CandidateConfigurations = () => {
             </div>
           </div>
         </div>
-
         <div className="mb-6">
           <h3 className="font-semibold text-gray-700 mb-3">CubeMaster Candidate Configurations</h3>
           <div className="overflow-x-auto">
@@ -154,7 +161,6 @@ const CandidateConfigurations = () => {
                 {candidateCartons.map(carton => {
                   const unitsPerPallet = carton.unitsPerCarton * carton.cartonsPerPallet;
                   const isValid = carton.length <= 63.5 && carton.width <= 63.5 && carton.height <= 63.5;
-
                   return (
                     <tr key={carton.id} className={carton.isSelected ? 'bg-blue-50' : ''}>
                       <td className="py-2 px-3">
@@ -199,7 +205,6 @@ const CandidateConfigurations = () => {
             </table>
           </div>
         </div>
-
         <div className="flex justify-between items-center">
           <button className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-all">
             Import from CSV
