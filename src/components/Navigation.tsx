@@ -1,38 +1,36 @@
-// src/components/Navigation.tsx
+// src/components/Footer.tsx
 import React from 'react';
 
-const Navigation = ({ activeSection, setActiveSection }) => {
+const Footer = ({ activeSection, setActiveSection }) => {
   return (
-    <div className="flex mb-6 bg-white rounded-lg shadow p-1">
-      <button
-        onClick={() => setActiveSection('input')}
-        className={`flex-1 py-3 px-4 text-center rounded-lg transition-all ${
-          activeSection === 'input' ? 'bg-blue-600 text-white font-medium' : 'hover:bg-gray-100'
-        }`}
-      >
-        <span className="block text-sm md:text-base">Part 1</span>
-        <span className="text-xs md:text-sm opacity-80">Candidate Configurations</span>
-      </button>
-      <button
-        onClick={() => setActiveSection('part2a')}
-        className={`flex-1 py-3 px-4 text-center rounded-lg transition-all ${
-          activeSection === 'part2a' ? 'bg-green-600 text-white font-medium' : 'hover:bg-gray-100'
-        }`}
-      >
-        <span className="block text-sm md:text-base">Part 2A</span>
-        <span className="text-xs md:text-sm opacity-80">Cost Analysis</span>
-      </button>
-      <button
-        onClick={() => setActiveSection('part2b')}
-        className={`flex-1 py-3 px-4 text-center rounded-lg transition-all ${
-          activeSection === 'part2b' ? 'bg-green-600 text-white font-medium' : 'hover:bg-gray-100'
-        }`}
-      >
-        <span className="block text-sm md:text-base">Part 2B</span>
-        <span className="text-xs md:text-sm opacity-80">Cost Optimization</span>
-      </button>
+    <div className="bg-white p-4 rounded-lg shadow-lg">
+      <div className="flex justify-between items-center">
+        <div className="text-sm text-gray-500">
+          Carton Optimization System - Two-Part Analysis
+        </div>
+        <div className="flex space-x-4">
+          <button
+            onClick={() => setActiveSection('input')}
+            className={`px-3 py-1 rounded ${activeSection === 'input' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            Part 1: Input
+          </button>
+          <button
+            onClick={() => setActiveSection('part2a')}
+            className={`px-3 py-1 rounded ${activeSection === 'part2a' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            Part 2A: Analysis
+          </button>
+          <button
+            onClick={() => setActiveSection('part2b')}
+            className={`px-3 py-1 rounded ${activeSection === 'part2b' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            Part 2B: Optimization
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
 
-export default Navigation;
+export default Footer;

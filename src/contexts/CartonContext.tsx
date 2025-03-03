@@ -47,7 +47,7 @@ export const CartonProvider = ({ children }) => {
     cartonHandlingCost: 1.3,
     cartonUnloadingCost: 1.75,
     palletStorageCostPerWeek: 3.9,
-    storageWeeks: 16,
+    storageWeeks: 8,
     palletHandlingCost: 6.75,
     ltlCostPerPallet: 50,
     ftlCostPerTruck: 500,
@@ -65,6 +65,12 @@ export const CartonProvider = ({ children }) => {
         isSelected: carton.id === id
       }))
     );
+  };
+
+  // Get selected carton ID
+  const getSelectedCartonId = () => {
+    const selectedCarton = candidateCartons.find(c => c.isSelected);
+    return selectedCarton ? selectedCarton.id : null;
   };
 
   // Handle adding a new candidate
@@ -174,6 +180,7 @@ export const CartonProvider = ({ children }) => {
       candidateCartons,
       setCandidateCartons,
       toggleCandidateSelection,
+      getSelectedCartonId,
       handleAddCandidate,
       handleEditCandidate,
       handleDeleteCandidate

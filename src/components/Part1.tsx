@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCarton } from '../contexts/CartonContext';
 
 const CandidateConfigurations = () => {
+  const navigate = useNavigate();
   const {
     candidateCartons,
     toggleCandidateSelection,
@@ -45,6 +47,11 @@ const CandidateConfigurations = () => {
   const submitCandidate = () => {
     handleAddCandidate(newCandidate, editMode, editCandidateId);
     cancelEdit();
+  };
+
+  // Function to handle navigation to Cost Analysis
+  const handleNavigateToAnalysis = () => {
+    navigate('/part2a');
   };
 
   return (
@@ -199,9 +206,9 @@ const CandidateConfigurations = () => {
           </button>
           <button
             className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all"
-            onClick={() => {}}
+            onClick={handleNavigateToAnalysis}
           >
-            Next: Cost Analysis →
+            Next: Singular Cost Analysis →
           </button>
         </div>
       </div>

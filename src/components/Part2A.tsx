@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCarton, useCostConfig, useProvider } from '../contexts/CartonContext';
 import { useCostCalculation } from '../hooks/useCostCalculation';
 import { formatCurrency } from '../utils/formatters';
@@ -14,12 +14,27 @@ import {
 } from 'recharts';
 
 const CostAnalysis = () => {
-  const { candidateCartons } = useCarton();
+  const { candidateCartons, getSelectedCartonId } = useCarton();
   const { providerRates, updateProviderRate, handleProviderChange } = useProvider();
   const { costConfig, setCostConfig } = useCostConfig();
   const { analysisResults, selectedCartonId, setSelectedCartonId } = useCostCalculation();
 
   const [showDetailedTable, setShowDetailedTable] = useState(false);
+
+  // Set the initial selected carton ID based on what's selected in Part 1
+  useEffect(() => {
+    const selected = getSelectedCartonId();
+    if (selected) {
+      setSelectedCartonId(selected);
+    }
+  }, [getSelectedCartonId]);
+
+  // Set transportMode to LTL if set to auto
+  useEffect(() => {
+    if (costConfig.transportMode === 'auto') {
+      setCostConfig(prev => ({...prev, transportMode: 'ltl'}));
+    }
+  }, []);
 
   // Custom tooltip for cost components chart
   const CostComponentsTooltip = ({ active, payload, label }) => {
@@ -49,352 +64,568 @@ const CostAnalysis = () => {
   return (
     <>
       <div className="bg-white p-4 rounded-lg shadow-lg mb-6">
-        <h2 className="text-xl font-semibold text-gray-700 border-b pb-2 mb-4">Part 2A: Cost Analysis</h2>
+        <h2 className="text-xl font-semibold text-gray-700 border-b pb-2 mb-4">Part 2A: Singular Cost Analysis</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          {/* 3PL Selection */}
-          <div className="col-span-1 md:col-span-3 bg-indigo-50 p-4 rounded-lg mb-4">
-            <h3 className="font-semibold text-indigo-800 mb-3">3PL Provider Selection</h3>
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex space-x-1">
-                <button
-                  onClick={() => handleProviderChange('fmc')}
-                  className={`flex-1 py-2 px-4 rounded ${
-                    costConfig.provider === 'fmc'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white border hover:bg-gray-50'
-                  }`}
-                >
-                  FMC
-                </button>
-                <button
-                  onClick={() => handleProviderChange('vglobal')}
-                  className={`flex-1 py-2 px-4 rounded ${
-                    costConfig.provider === 'vglobal'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white border hover:bg-gray-50'
-                  }`}
-                >
-                  Vglobal
-                </button>
-                <button
-                  onClick={() => handleProviderChange('4as')}
-                  className={`flex-1 py-2 px-4 rounded ${
-                    costConfig.provider === '4as'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white border hover:bg-gray-50'
-                  }`}
-                >
-                  4as
-                </button>
-              </div>
-
-              {costConfig.provider && (
-                <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-2 bg-white p-3 rounded">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500">Carton Handling</div>
-                    <div className="text-sm font-medium">£{costConfig.cartonHandlingCost.toFixed(2)}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500">Carton Unloading</div>
-                    <div className="text-sm font-medium">£{costConfig.cartonUnloadingCost.toFixed(2)}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500">Pallet Storage/Week</div>
-                    <div className="text-sm font-medium">£{costConfig.palletStorageCostPerWeek.toFixed(2)}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500">Pallet Handling</div>
-                    <div className="text-sm font-medium">£{costConfig.palletHandlingCost.toFixed(2)}</div>
+        {/* Main Configuration Dialog Box */}
+        <div className="bg-white border-2 border-gray-200 rounded-lg p-4 mb-6">
+          <h3 className="font-semibold text-gray-700 mb-3">Analysis Configuration</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Carton Configuration */}
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Carton Configuration</h4>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500">Quantity</label>
+                  <input
+                    type="number"
+                    value={costConfig.totalDemand}
+                    className="w-full p-2 border rounded text-lg font-medium"
+                    onChange={(e) => setCostConfig({...costConfig, totalDemand: parseFloat(e.target.value) || 0})}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Select Configuration</label>
+                  <select 
+                    className="w-full p-2 border rounded"
+                    value={selectedCartonId}
+                    onChange={(e) => setSelectedCartonId(parseInt(e.target.value))}
+                  >
+                    {candidateCartons.map(carton => (
+                      <option key={carton.id} value={carton.id}>
+                        {carton.length}×{carton.width}×{carton.height} cm ({carton.unitsPerCarton} units/carton)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Units/Carton</label>
+                  <div className="bg-white p-2 rounded border font-medium">
+                    {candidateCartons.find(c => c.id === selectedCartonId)?.unitsPerCarton || '-'}
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Carton-Related Costs (C₁) */}
-          <div className="bg-cyan-50 p-4 rounded-lg">
-            <h3 className="font-semibold text-cyan-800 mb-3">Carton-Related Costs (C₁)</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Carton Handling (£)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={costConfig.cartonHandlingCost}
-                  className="w-full p-2 border rounded"
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    setCostConfig({...costConfig, cartonHandlingCost: value});
-                    updateProviderRate(costConfig.provider, 'cartonHandlingCost', value);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Carton Unloading (£)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={costConfig.cartonUnloadingCost}
-                  className="w-full p-2 border rounded"
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    setCostConfig({...costConfig, cartonUnloadingCost: value});
-                    updateProviderRate(costConfig.provider, 'cartonUnloadingCost', value);
-                  }}
-                />
+                
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Cartons/Pallet</label>
+                  <div className="bg-white p-2 rounded border font-medium">
+                    {candidateCartons.find(c => c.id === selectedCartonId)?.cartonsPerPallet || '-'}
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="mt-3 p-2 bg-white rounded">
-              <div className="text-xs text-gray-500">Formula:</div>
-              <div className="text-sm font-mono">C₁ = Total_cartons × (£{costConfig.cartonHandlingCost.toFixed(2)} + £{costConfig.cartonUnloadingCost.toFixed(2)})</div>
-              <div className="text-xs text-gray-500 mt-1">Carton-related costs are calculated per carton and scale linearly with total cartons.</div>
-            </div>
-          </div>
-
-          {/* Pallet-Related Storage Costs (C₂) */}
-          <div className="bg-green-50 p-4 rounded-lg">
-            <h3 className="font-semibold text-green-800 mb-3">Pallet-Related Storage (C₂)</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Storage Cost (£/week)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={costConfig.palletStorageCostPerWeek}
-                  className="w-full p-2 border rounded"
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    setCostConfig({...costConfig, palletStorageCostPerWeek: value});
-                    updateProviderRate(costConfig.provider, 'palletStorageCostPerWeek', value);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Storage Weeks</label>
-                <input
-                  type="number"
-                  value={costConfig.storageWeeks}
-                  className="w-full p-2 border rounded"
-                  onChange={(e) => setCostConfig({...costConfig, storageWeeks: parseFloat(e.target.value)})}
-                />
-              </div>
-            </div>
-            <div className="mt-3 p-2 bg-white rounded">
-              <div className="text-xs text-gray-500">Formula:</div>
-              <div className="text-sm font-mono">C₂ = N_pallets × £{costConfig.palletStorageCostPerWeek.toFixed(2)} × {costConfig.storageWeeks} weeks</div>
-              <div className="text-xs text-gray-500 mt-1">Storage costs depend on the number of pallets and storage duration.</div>
-            </div>
-          </div>
-
-          {/* Pallet-Related Transport Costs (C₃) */}
-          <div className="bg-indigo-50 p-4 rounded-lg">
-            <h3 className="font-semibold text-indigo-800 mb-3">Transport Costs (C₃)</h3>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">LTL Cost (£/pallet)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={costConfig.ltlCostPerPallet}
-                  className="w-full p-2 border rounded"
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    setCostConfig({...costConfig, ltlCostPerPallet: value});
-                    updateProviderRate(costConfig.provider, 'ltlCostPerPallet', value);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">FTL Cost (£/truck)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={costConfig.ftlCostPerTruck}
-                  className="w-full p-2 border rounded"
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    setCostConfig({...costConfig, ftlCostPerTruck: value});
-                    updateProviderRate(costConfig.provider, 'ftlCostPerTruck', value);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pallets/Truck</label>
-                <input
-                  type="number"
-                  value={costConfig.palletsPerTruck}
-                  className="w-full p-2 border rounded"
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    setCostConfig({...costConfig, palletsPerTruck: value});
-                    updateProviderRate(costConfig.provider, 'palletsPerTruck', value);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pallet Handling (£)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={costConfig.palletHandlingCost}
-                  className="w-full p-2 border rounded"
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    setCostConfig({...costConfig, palletHandlingCost: value});
-                    updateProviderRate(costConfig.provider, 'palletHandlingCost', value);
-                  }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Transport Mode</label>
-              <div className="flex space-x-1">
-                <button
-                  onClick={() => setCostConfig({...costConfig, transportMode: 'auto'})}
-                  className={`flex-1 py-2 px-4 rounded ${
-                    costConfig.transportMode === 'auto'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white border hover:bg-gray-50'
-                  }`}
-                >
-                  Auto (Min Cost)
-                </button>
-                <button
-                  onClick={() => setCostConfig({...costConfig, transportMode: 'ltl'})}
-                  className={`flex-1 py-2 px-4 rounded ${
-                    costConfig.transportMode === 'ltl'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white border hover:bg-gray-50'
-                  }`}
-                >
-                  LTL Only
-                </button>
-                <button
-                  onClick={() => setCostConfig({...costConfig, transportMode: 'ftl'})}
-                  className={`flex-1 py-2 px-4 rounded ${
-                    costConfig.transportMode === 'ftl'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white border hover:bg-gray-50'
-                  }`}
-                >
-                  FTL Only
-                </button>
-              </div>
-            </div>
-
-            <div className="p-2 bg-white rounded">
-              <div className="text-xs text-gray-500">LTL Formula:</div>
-              <div className="text-sm font-mono">LTL = N_pallets × £{costConfig.ltlCostPerPallet.toFixed(2)} + (N_pallets × £{costConfig.palletHandlingCost.toFixed(2)})</div>
-              <div className="text-xs text-gray-500 mt-1">FTL Formula:</div>
-              <div className="text-sm font-mono">FTL = ⌈N_pallets ÷ {costConfig.palletsPerTruck}⌉ × £{costConfig.ftlCostPerTruck.toFixed(2)} + (N_pallets × £{costConfig.palletHandlingCost.toFixed(2)})</div>
-              <div className="text-xs text-gray-500 mt-1">
-                {costConfig.transportMode === 'auto' ?
-                  "The system automatically selects the minimum cost option." :
-                  `The system uses ${costConfig.transportMode === 'ltl' ? 'LTL' : 'FTL'} for all calculations.`}
+            
+            {/* Provider & Transport Selection */}
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Provider & Transport</h4>
+              
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">3PL Provider</label>
+                  <div className="flex space-x-1">
+                    <button
+                      onClick={() => handleProviderChange('fmc')}
+                      className={`flex-1 py-1 px-2 rounded text-sm ${
+                        costConfig.provider === 'fmc'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white border hover:bg-gray-50'
+                      }`}
+                    >
+                      FMC
+                    </button>
+                    <button
+                      onClick={() => handleProviderChange('vglobal')}
+                      className={`flex-1 py-1 px-2 rounded text-sm ${
+                        costConfig.provider === 'vglobal'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white border hover:bg-gray-50'
+                      }`}
+                    >
+                      Vglobal
+                    </button>
+                    <button
+                      onClick={() => handleProviderChange('4as')}
+                      className={`flex-1 py-1 px-2 rounded text-sm ${
+                        costConfig.provider === '4as'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white border hover:bg-gray-50'
+                      }`}
+                    >
+                      4as
+                    </button>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Transport Mode</label>
+                  <div className="flex space-x-1">
+                    <button
+                      onClick={() => setCostConfig({...costConfig, transportMode: 'ltl'})}
+                      className={`flex-1 py-1 px-2 rounded text-sm ${
+                        costConfig.transportMode === 'ltl'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white border hover:bg-gray-50'
+                      }`}
+                    >
+                      LTL Only
+                    </button>
+                    <button
+                      onClick={() => setCostConfig({...costConfig, transportMode: 'ftl'})}
+                      className={`flex-1 py-1 px-2 rounded text-sm ${
+                        costConfig.transportMode === 'ftl'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white border hover:bg-gray-50'
+                      }`}
+                    >
+                      FTL Only
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Selected Configuration and Analysis */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="bg-rose-50 p-4 rounded-lg">
-            <h3 className="font-semibold text-rose-800 mb-3">Selected Configuration</h3>
-            {candidateCartons.find(c => c.id === selectedCartonId) && (
-              <div className="p-3 bg-white rounded-lg mb-3">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">
-                  Carton: {candidateCartons.find(c => c.id === selectedCartonId).length}×
-                  {candidateCartons.find(c => c.id === selectedCartonId).width}×
-                  {candidateCartons.find(c => c.id === selectedCartonId).height} cm
-                </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="text-xs text-gray-500">Units/Carton</div>
-                  <div className="text-sm font-medium text-right">
-                    {candidateCartons.find(c => c.id === selectedCartonId).unitsPerCarton}
+        
+        {/* Cost Inputs Section - Separated by Category */}
+        <div className="grid grid-cols-1 gap-6 mb-6">
+          {/* Carton-Related Costs Section */}
+          <div className="bg-cyan-50 p-4 rounded-lg border-2 border-cyan-200">
+            <h3 className="text-lg font-semibold text-cyan-800 mb-3">Carton-Related Costs</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white p-3 rounded-lg">
+                <h4 className="font-medium text-gray-700 mb-2">Cost Parameters</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Carton Handling (£)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={costConfig.cartonHandlingCost}
+                      className="w-full p-2 border rounded"
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        setCostConfig({...costConfig, cartonHandlingCost: value});
+                        updateProviderRate(costConfig.provider, 'cartonHandlingCost', value);
+                      }}
+                    />
                   </div>
-                  <div className="text-xs text-gray-500">Cartons/Pallet</div>
-                  <div className="text-sm font-medium text-right">
-                    {candidateCartons.find(c => c.id === selectedCartonId).cartonsPerPallet}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Carton Unloading (£)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={costConfig.cartonUnloadingCost}
+                      className="w-full p-2 border rounded"
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        setCostConfig({...costConfig, cartonUnloadingCost: value});
+                        updateProviderRate(costConfig.provider, 'cartonUnloadingCost', value);
+                      }}
+                    />
                   </div>
                 </div>
               </div>
-            )}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Product Quantity</label>
-              <div className="flex">
-                <input
-                  type="number"
-                  value={costConfig.totalDemand}
-                  className="flex-1 p-2 border rounded"
-                  onChange={(e) => setCostConfig({...costConfig, totalDemand: parseFloat(e.target.value) || 0})}
-                />
+              
+              <div className="bg-white p-3 rounded-lg">
+                <h4 className="font-medium text-gray-700 mb-2">Formula</h4>
+                <div className="p-2 bg-gray-50 rounded">
+                  <div className="text-sm font-mono">
+                    C₁ = Total_cartons × (£{costConfig.cartonHandlingCost.toFixed(2)} + £{costConfig.cartonUnloadingCost.toFixed(2)})
+                  </div>
+                  
+                  {analysisResults && (
+                    <div className="mt-2 p-2 bg-cyan-100 rounded">
+                      <div className="text-xs font-medium text-cyan-800">Current calculation:</div>
+                      <div className="text-sm">C₁ = {analysisResults.totalCartons} × £{(costConfig.cartonHandlingCost + costConfig.cartonUnloadingCost).toFixed(2)} = {formatCurrency(analysisResults.cartonCosts)}</div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Cost Analysis Results */}
-          {analysisResults && (
-            <>
-              <div className="md:col-span-2 bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-gray-700 mb-3">Cost Analysis Results</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
-                  <div className="bg-white p-3 rounded shadow-sm">
-                    <div className="text-xs text-gray-500">Total Cartons</div>
-                    <div className="text-xl font-medium">{analysisResults.totalCartons}</div>
+          {/* Pallet-Related Costs Section */}
+          <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
+            <h3 className="text-lg font-semibold text-green-800 mb-3">Pallet-Related Costs</h3>
+            
+            {/* Storage Costs */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="bg-white p-3 rounded-lg">
+                <h4 className="font-medium text-gray-700 mb-2">Storage Parameters</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Storage Cost (£/week)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={costConfig.palletStorageCostPerWeek}
+                      className="w-full p-2 border rounded"
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        setCostConfig({...costConfig, palletStorageCostPerWeek: value});
+                        updateProviderRate(costConfig.provider, 'palletStorageCostPerWeek', value);
+                      }}
+                    />
                   </div>
-                  <div className="bg-white p-3 rounded shadow-sm">
-                    <div className="text-xs text-gray-500">Total Pallets</div>
-                    <div className="text-xl font-medium">{analysisResults.totalPallets}</div>
-                  </div>
-                  <div className="bg-white p-3 rounded shadow-sm">
-                    <div className="text-xs text-gray-500">Best Transport</div>
-                    <div className="text-xl font-medium">{analysisResults.transportMode}</div>
-                    <div className="text-xs text-gray-500">{formatCurrency(analysisResults.ltlCost)} vs {formatCurrency(analysisResults.ftlCost)}</div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                  <div className="bg-cyan-50 p-3 rounded">
-                    <div className="text-xs text-cyan-800 font-medium">C₁: Carton Costs</div>
-                    <div className="text-lg font-medium">{formatCurrency(analysisResults.cartonCosts)}</div>
-                    <div className="text-xs text-cyan-600">
-                      {analysisResults.totalCartons} cartons × £{(costConfig.cartonHandlingCost + costConfig.cartonUnloadingCost).toFixed(2)}
-                    </div>
-                  </div>
-                  <div className="bg-green-50 p-3 rounded">
-                    <div className="text-xs text-green-800 font-medium">C₂: Storage Costs</div>
-                    <div className="text-lg font-medium">{formatCurrency(analysisResults.storageCosts)}</div>
-                    <div className="text-xs text-green-600">
-                      {analysisResults.totalPallets} pallets × £{costConfig.palletStorageCostPerWeek.toFixed(2)} × {costConfig.storageWeeks} weeks
-                    </div>
-                  </div>
-                  <div className="bg-indigo-50 p-3 rounded">
-                    <div className="text-xs text-indigo-800 font-medium">C₃: Transport Costs</div>
-                    <div className="text-lg font-medium">{formatCurrency(analysisResults.transportCosts)}</div>
-                    <div className="text-xs text-indigo-600">
-                      {analysisResults.transportMode} transport with handling (£{analysisResults.palletHandlingCosts.toFixed(2)})
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-rose-100 rounded">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="text-sm text-rose-800 font-medium">Total Cost</div>
-                      <div className="text-xs text-rose-600">For {costConfig.totalDemand.toLocaleString()} units</div>
-                    </div>
-                    <div className="text-xl font-bold text-rose-800">{formatCurrency(analysisResults.totalCost)}</div>
-                  </div>
-                  <div className="mt-2 pt-2 border-t border-rose-200 flex justify-between items-center">
-                    <div className="text-sm text-rose-800 font-medium">Cost per Unit</div>
-                    <div className="text-lg font-bold text-rose-800">{formatCurrency(analysisResults.costPerUnit)}</div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Storage Weeks</label>
+                    <input
+                      type="number"
+                      value={costConfig.storageWeeks}
+                      className="w-full p-2 border rounded"
+                      onChange={(e) => setCostConfig({...costConfig, storageWeeks: parseFloat(e.target.value)})}
+                    />
                   </div>
                 </div>
               </div>
-            </>
-          )}
+              
+              <div className="bg-white p-3 rounded-lg">
+                <h4 className="font-medium text-gray-700 mb-2">Storage Formula</h4>
+                <div className="p-2 bg-gray-50 rounded">
+                  <div className="text-sm font-mono">
+                    C₂ = N_pallets × £{costConfig.palletStorageCostPerWeek.toFixed(2)} × {costConfig.storageWeeks} weeks
+                  </div>
+                  
+                  {analysisResults && (
+                    <div className="mt-2 p-2 bg-green-100 rounded">
+                      <div className="text-xs font-medium text-green-800">Current calculation:</div>
+                      <div className="text-sm">C₂ = {analysisResults.totalPallets} × £{costConfig.palletStorageCostPerWeek.toFixed(2)} × {costConfig.storageWeeks} = {formatCurrency(analysisResults.storageCosts)}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Transport Costs */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white p-3 rounded-lg">
+                <h4 className="font-medium text-gray-700 mb-2">Transport Parameters</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {costConfig.transportMode === 'ltl' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">LTL Cost (£/pallet)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={costConfig.ltlCostPerPallet}
+                          className="w-full p-2 border rounded"
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            setCostConfig({...costConfig, ltlCostPerPallet: value});
+                            updateProviderRate(costConfig.provider, 'ltlCostPerPallet', value);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Pallet Handling (£)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={costConfig.palletHandlingCost}
+                          className="w-full p-2 border rounded"
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            setCostConfig({...costConfig, palletHandlingCost: value});
+                            updateProviderRate(costConfig.provider, 'palletHandlingCost', value);
+                          }}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {costConfig.transportMode === 'ftl' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">FTL Cost (£/truck)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={costConfig.ftlCostPerTruck}
+                          className="w-full p-2 border rounded"
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            setCostConfig({...costConfig, ftlCostPerTruck: value});
+                            updateProviderRate(costConfig.provider, 'ftlCostPerTruck', value);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Pallets/Truck</label>
+                        <input
+                          type="number"
+                          value={costConfig.palletsPerTruck}
+                          className="w-full p-2 border rounded"
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            setCostConfig({...costConfig, palletsPerTruck: value});
+                            updateProviderRate(costConfig.provider, 'palletsPerTruck', value);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Pallet Handling (£)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={costConfig.palletHandlingCost}
+                          className="w-full p-2 border rounded"
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            setCostConfig({...costConfig, palletHandlingCost: value});
+                            updateProviderRate(costConfig.provider, 'palletHandlingCost', value);
+                          }}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              <div className="bg-white p-3 rounded-lg">
+                <h4 className="font-medium text-gray-700 mb-2">Transport Formula</h4>
+                <div className="p-2 bg-gray-50 rounded">
+                  {costConfig.transportMode === 'ltl' && (
+                    <div className="text-sm font-mono">
+                      C₃ = N_pallets × £{costConfig.ltlCostPerPallet.toFixed(2)} + (N_pallets × £{costConfig.palletHandlingCost.toFixed(2)})
+                    </div>
+                  )}
+                  {costConfig.transportMode === 'ftl' && (
+                    <div className="text-sm font-mono">
+                      C₃ = ⌈N_pallets ÷ {costConfig.palletsPerTruck}⌉ × £{costConfig.ftlCostPerTruck.toFixed(2)} + (N_pallets × £{costConfig.palletHandlingCost.toFixed(2)})
+                    </div>
+                  )}
+                  
+                  {analysisResults && (
+                    <div className="mt-2 p-2 bg-indigo-100 rounded">
+                      <div className="text-xs font-medium text-indigo-800">Current transport costs:</div>
+                      <div className="text-sm">C₃ = {formatCurrency(analysisResults.transportCosts)}</div>
+                      <div className="text-xs mt-1">LTL: {formatCurrency(analysisResults.ltlCost)} vs FTL: {formatCurrency(analysisResults.ftlCost)}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Results Section - REORGANIZED */}
+        <div className="bg-gray-50 p-4 rounded-lg mb-6">
+          <h3 className="font-semibold text-gray-700 mb-3">Analysis Results for {costConfig.totalDemand.toLocaleString()} Units</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {/* Summary Metrics */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-white p-3 rounded shadow-sm">
+                <div className="text-xs text-gray-500">Total Cartons</div>
+                <div className="text-xl font-medium">{analysisResults?.totalCartons ?? '-'}</div>
+              </div>
+              <div className="bg-white p-3 rounded shadow-sm">
+                <div className="text-xs text-gray-500">Total Pallets</div>
+                <div className="text-xl font-medium">{analysisResults?.totalPallets ?? '-'}</div>
+              </div>
+              <div className="bg-white p-3 rounded shadow-sm">
+                <div className="text-xs text-gray-500">Transport</div>
+                <div className="text-xl font-medium">{analysisResults?.transportMode ?? '-'}</div>
+              </div>
+            </div>
+            
+            {/* Cost Components */}
+            <div className="col-span-2 grid grid-cols-3 gap-2">
+              <div className="bg-cyan-50 p-3 rounded">
+                <div className="text-xs text-cyan-800 font-medium">C₁: Carton Costs</div>
+                <div className="text-lg font-medium">{analysisResults ? formatCurrency(analysisResults.cartonCosts) : '-'}</div>
+                <div className="text-xs text-cyan-600">{analysisResults ? `${analysisResults.cartonCostPercentage.toFixed(1)}%` : ''}</div>
+              </div>
+              <div className="bg-green-50 p-3 rounded">
+                <div className="text-xs text-green-800 font-medium">C₂: Storage Costs</div>
+                <div className="text-lg font-medium">{analysisResults ? formatCurrency(analysisResults.storageCosts) : '-'}</div>
+                <div className="text-xs text-green-600">{analysisResults ? `${analysisResults.storageCostPercentage.toFixed(1)}%` : ''}</div>
+              </div>
+              <div className="bg-indigo-50 p-3 rounded">
+                <div className="text-xs text-indigo-800 font-medium">C₃: Transport Costs</div>
+                <div className="text-lg font-medium">{analysisResults ? formatCurrency(analysisResults.transportCosts) : '-'}</div>
+                <div className="text-xs text-indigo-600">{analysisResults ? `${analysisResults.transportCostPercentage.toFixed(1)}%` : ''}</div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Total Cost Summary */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-rose-100 p-3 rounded">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="text-sm text-rose-800 font-medium">Total Cost</div>
+                  <div className="text-xs text-rose-600">For {costConfig.totalDemand.toLocaleString()} units</div>
+                </div>
+                <div className="text-xl font-bold text-rose-800">{analysisResults ? formatCurrency(analysisResults.totalCost) : '-'}</div>
+              </div>
+            </div>
+            <div className="bg-rose-100 p-3 rounded">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-rose-800 font-medium">Cost per Unit</div>
+                <div className="text-xl font-bold text-rose-800">{analysisResults ? formatCurrency(analysisResults.costPerUnit) : '-'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Cost Breakdown Visualization */}
+        <div className="bg-gray-50 p-4 rounded-lg mb-6">
+          <h3 className="font-semibold text-gray-700 mb-3">Cost Breakdown Visualization</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+            {/* Cost Category Legend */}
+            <div className="bg-white p-3 rounded-lg shadow-sm">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Cost Categories</h4>
+              <div className="grid grid-cols-1 gap-2">
+                <div className="flex items-center">
+                  <div className="w-4 h-4 bg-cyan-500 mr-2"></div>
+                  <div>
+                    <div className="text-sm font-medium">Carton-Related Costs (C₁)</div>
+                    <div className="text-xs text-gray-500">Handling and unloading of individual cartons</div>
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-4 h-4 bg-green-500 mr-2"></div>
+                  <div>
+                    <div className="text-sm font-medium">Pallet-Related: Storage Costs (C₂)</div>
+                    <div className="text-xs text-gray-500">Warehousing costs for complete pallets over time</div>
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-4 h-4 bg-indigo-500 mr-2"></div>
+                  <div>
+                    <div className="text-sm font-medium">Pallet-Related: Transport Costs (C₃)</div>
+                    <div className="text-xs text-gray-500">LTL or FTL shipping and pallet handling</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Cost Breakdown Panel */}
+            <div className="bg-white p-3 rounded-lg shadow-sm">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Cost Distribution</h4>
+              <div className="grid grid-cols-1 gap-2">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-cyan-500 mr-2"></div>
+                    <div className="text-sm">Carton Costs:</div>
+                  </div>
+                  <div className="text-sm font-medium">
+                    {analysisResults ? formatCurrency(analysisResults.cartonCosts) : '-'} ({analysisResults ? `${analysisResults.cartonCostPercentage.toFixed(1)}%` : '-'})
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-green-500 mr-2"></div>
+                    <div className="text-sm">Storage Costs:</div>
+                  </div>
+                  <div className="text-sm font-medium">
+                    {analysisResults ? formatCurrency(analysisResults.storageCosts) : '-'} ({analysisResults ? `${analysisResults.storageCostPercentage.toFixed(1)}%` : '-'})
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-indigo-500 mr-2"></div>
+                    <div className="text-sm">Transport Costs:</div>
+                  </div>
+                  <div className="text-sm font-medium">
+                    {analysisResults ? formatCurrency(analysisResults.transportCosts) : '-'} ({analysisResults ? `${analysisResults.transportCostPercentage.toFixed(1)}%` : '-'})
+                  </div>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <div className="text-sm font-medium">Total:</div>
+                  <div className="text-sm font-medium">
+                    {analysisResults ? formatCurrency(analysisResults.totalCost) : '-'} (100%)
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Pie Chart */}
+            <div className="h-64 bg-white rounded-lg p-3">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart
+                  data={[{
+                    name: 'Cost Components',
+                    cartonCosts: analysisResults ? analysisResults.cartonCostPercentage : 0,
+                    storageCosts: analysisResults ? analysisResults.storageCostPercentage : 0,
+                    transportCosts: analysisResults ? analysisResults.transportCostPercentage : 0,
+                  }]}
+                  margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
+                >
+                  <Tooltip 
+                    formatter={(value) => [`${value.toFixed(2)}%`, '']}
+                    labelFormatter={() => 'Cost distribution'}
+                    contentStyle={{ border: '1px solid #ccc', borderRadius: '4px', padding: '8px' }}
+                  />
+                  <Legend />
+                  <Pie
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    fill="#8884d8"
+                    label={({cx, cy, midAngle, innerRadius, outerRadius, percent, name}) => {
+                      const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                      const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
+                      const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
+                      return (
+                        <text
+                          x={x}
+                          y={y}
+                          fill="white"
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                        >
+                          {`${(percent * 100).toFixed(1)}%`}
+                        </text>
+                      );
+                    }}
+                    data={[
+                      { name: 'C₁: Carton Costs', value: analysisResults ? analysisResults.cartonCostPercentage : 0, fill: '#0891b2' },
+                      { name: 'C₂: Pallet Storage', value: analysisResults ? analysisResults.storageCostPercentage : 0, fill: '#16a34a' },
+                      { name: 'C₃: Pallet Transport', value: analysisResults ? analysisResults.transportCostPercentage : 0, fill: '#4f46e5' },
+                    ]}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+            
+            {/* Bar Chart */}
+            <div className="h-64 bg-white rounded-lg p-3">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart
+                  data={[analysisResults].filter(Boolean)}
+                  margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
+                  layout="vertical"
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" tickFormatter={(value) => `£${value.toFixed(2)}`} />
+                  <YAxis type="category" dataKey="name" width={120} />
+                  <Tooltip 
+                    formatter={(value, name) => {
+                      if (name === "cartonCosts") return [`£${value.toFixed(2)} (Carton-Related)`, 'C₁: Carton Costs'];
+                      if (name === "storageCosts") return [`£${value.toFixed(2)} (Pallet-Related)`, 'C₂: Storage Costs'];
+                      if (name === "transportCosts") return [`£${value.toFixed(2)} (Pallet-Related)`, 'C₃: Transport Costs'];
+                      return [`£${value.toFixed(2)}`, name];
+                    }}
+                    contentStyle={{ border: '1px solid #ccc', borderRadius: '4px', padding: '8px' }}
+                  />
+                  <Legend />
+                  <Bar dataKey="cartonCosts" name="C₁: Carton Costs" stackId="a" fill="#0891b2" barSize={30} />
+                  <Bar dataKey="storageCosts" name="C₂: Pallet Storage" stackId="a" fill="#16a34a" barSize={30} />
+                  <Bar dataKey="transportCosts" name="C₃: Pallet Transport" stackId="a" fill="#4f46e5" barSize={30} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
 
         {/* Cost vs. Quantity Chart */}
@@ -417,8 +648,18 @@ const CostAnalysis = () => {
                   tickFormatter={(value) => `£${value.toFixed(2)}`}
                 />
                 <Tooltip
-                  formatter={(value) => [`£${value.toFixed(2)}`, '']}
+                  formatter={(value, name) => {
+                    if (name.includes("Carton")) {
+                      return [`£${value.toFixed(2)} (Carton-Related)`, name];
+                    } else if (name.includes("Storage")) {
+                      return [`£${value.toFixed(2)} (Pallet-Related)`, name];
+                    } else if (name.includes("Transport")) {
+                      return [`£${value.toFixed(2)} (Pallet-Related)`, name];
+                    }
+                    return [`£${value.toFixed(2)}`, name];
+                  }}
                   labelFormatter={(value) => `Quantity: ${value.toLocaleString()}`}
+                  contentStyle={{ border: '1px solid #ccc', borderRadius: '4px', padding: '8px' }}
                 />
                 <Legend />
 
@@ -489,10 +730,18 @@ const CostAnalysis = () => {
                     />
                   </>
                 )}
+                
+                {/* Add reference line for current quantity */}
+                <ReferenceLine
+                  x={costConfig.totalDemand}
+                  stroke="#ff0000"
+                  strokeDasharray="3 3"
+                  label={{ value: 'Current Quantity', position: 'top', fill: '#ff0000' }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex justify-between items-center mb-3">
+          <div className="flex justify-between items-center">
             <p className="text-sm text-gray-600">
               This chart shows how costs change as quantity increases.
             </p>
@@ -502,182 +751,6 @@ const CostAnalysis = () => {
             >
               Show {costConfig.showTotalCosts ? 'Cost per Unit' : 'Total Costs'}
             </button>
-          </div>
-        </div>
-
-        {/* Component Cost Breakdown with Pie Chart */}
-        <div className="bg-gray-50 p-4 rounded-lg mb-6">
-          <h3 className="font-semibold text-gray-700 mb-3">Cost Component Breakdown</h3>
-
-          {/* Single product quantity input with clear label */}
-          <div className="mb-4 max-w-xs">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Units Quantity</label>
-            <input
-              type="number"
-              value={costConfig.totalDemand}
-              className="w-full p-2 border rounded"
-              onChange={(e) => setCostConfig({...costConfig, totalDemand: parseFloat(e.target.value) || 0})}
-            />
-          </div>
-
-          <div className="flex flex-wrap">
-            {/* Pie Chart */}
-            <div className="w-full md:w-1/2 h-64 bg-white rounded-lg p-3 mb-3">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart
-                  data={[{
-                    name: 'Cost Components',
-                    cartonCosts: analysisResults ? analysisResults.cartonCostPercentage : 0,
-                    storageCosts: analysisResults ? analysisResults.storageCostPercentage : 0,
-                    transportCosts: analysisResults ? analysisResults.transportCostPercentage : 0,
-                  }]}
-                  margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
-                >
-                  <Tooltip formatter={(value) => [`${value.toFixed(2)}%`, '']} />
-                  <Legend />
-                  <Pie
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    fill="#8884d8"
-                    label={({cx, cy, midAngle, innerRadius, outerRadius, percent, name}) => {
-                      const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                      const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
-                      const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
-                      return (
-                        <text
-                          x={x}
-                          y={y}
-                          fill="white"
-                          textAnchor="middle"
-                          dominantBaseline="central"
-                        >
-                          {`${(percent * 100).toFixed(1)}%`}
-                        </text>
-                      );
-                    }}
-                    data={[
-                      { name: 'C₁: Carton Costs', value: analysisResults ? analysisResults.cartonCostPercentage : 0, fill: '#0891b2' },
-                      { name: 'C₂: Storage Costs', value: analysisResults ? analysisResults.storageCostPercentage : 0, fill: '#16a34a' },
-                      { name: 'C₃: Transport Costs', value: analysisResults ? analysisResults.transportCostPercentage : 0, fill: '#4f46e5' },
-                    ]}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Bar Chart and Details */}
-            <div className="w-full md:w-1/2">
-              <div className="h-64 bg-white rounded-lg p-3 mb-3">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart
-                    data={[analysisResults].filter(Boolean)}
-                    margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
-                    layout="vertical"
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" tickFormatter={(value) => `£${value.toFixed(2)}`} />
-                    <YAxis type="category" dataKey="name" width={120} />
-                    <Tooltip formatter={(value) => [`£${value.toFixed(2)}`, '']} />
-                    <Legend />
-                    <Bar dataKey="cartonCosts" name="C₁: Carton" stackId="a" fill="#0891b2" barSize={30} />
-                    <Bar dataKey="storageCosts" name="C₂: Storage" stackId="a" fill="#16a34a" barSize={30} />
-                    <Bar dataKey="transportCosts" name="C₃: Transport" stackId="a" fill="#4f46e5" barSize={30} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Cost Breakdown Summary Table */}
-            <div className="w-full bg-white p-4 rounded-lg">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Cost Breakdown at {costConfig.totalDemand.toLocaleString()} units</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <table className="min-w-full">
-                  <tbody>
-                    <tr>
-                      <td className="py-1">
-                        <span className="inline-block w-3 h-3 bg-cyan-500 mr-2"></span>
-                        C₁: Carton Costs
-                      </td>
-                      <td className="py-1 text-right">{analysisResults ? formatCurrency(analysisResults.cartonCosts) : '£0.00'}</td>
-                      <td className="py-1 text-right">{analysisResults ? analysisResults.cartonCostPercentage.toFixed(2) : 0}%</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1">
-                        <span className="inline-block w-3 h-3 bg-green-500 mr-2"></span>
-                        C₂: Storage Costs
-                      </td>
-                      <td className="py-1 text-right">{analysisResults ? formatCurrency(analysisResults.storageCosts) : '£0.00'}</td>
-                      <td className="py-1 text-right">{analysisResults ? analysisResults.storageCostPercentage.toFixed(2) : 0}%</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1">
-                        <span className="inline-block w-3 h-3 bg-indigo-500 mr-2"></span>
-                        C₃: Transport Costs
-                      </td>
-                      <td className="py-1 text-right">{analysisResults ? formatCurrency(analysisResults.transportCosts) : '£0.00'}</td>
-                      <td className="py-1 text-right">{analysisResults ? analysisResults.transportCostPercentage.toFixed(2) : 0}%</td>
-                    </tr>
-                    <tr className="border-t">
-                      <td className="py-1 font-medium">Total Cost</td>
-                      <td className="py-1 text-right font-medium">{analysisResults ? formatCurrency(analysisResults.totalCost) : '£0.00'}</td>
-                      <td className="py-1 text-right">100%</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1 font-medium">Cost per Unit</td>
-                      <td className="py-1 text-right font-medium" colSpan="2">{analysisResults ? formatCurrency(analysisResults.costPerUnit) : '£0.00'}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <div>
-                  <div className="mb-2">
-                    <span className="font-medium">Total Cartons:</span> {analysisResults ? analysisResults.totalCartons.toLocaleString() : '0'}
-                  </div>
-                  <div className="mb-2">
-                    <span className="font-medium">Total Pallets:</span> {analysisResults ? analysisResults.totalPallets.toFixed(2) : '0'}
-                  </div>
-
-                  <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Transport Mode</label>
-                    <div className="flex space-x-1">
-                      <button
-                        onClick={() => setCostConfig({...costConfig, transportMode: 'auto'})}
-                        className={`flex-1 py-2 px-4 rounded ${
-                          costConfig.transportMode === 'auto'
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-white border hover:bg-gray-50'
-                        }`}
-                      >
-                        Auto (Min Cost)
-                      </button>
-                      <button
-                        onClick={() => setCostConfig({...costConfig, transportMode: 'ltl'})}
-                        className={`flex-1 py-2 px-4 rounded ${
-                          costConfig.transportMode === 'ltl'
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-white border hover:bg-gray-50'
-                        }`}
-                      >
-                        LTL Only
-                      </button>
-                      <button
-                        onClick={() => setCostConfig({...costConfig, transportMode: 'ftl'})}
-                        className={`flex-1 py-2 px-4 rounded ${
-                          costConfig.transportMode === 'ftl'
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-white border hover:bg-gray-50'
-                        }`}
-                      >
-                        FTL Only
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -735,50 +808,6 @@ const CostAnalysis = () => {
               It provides the exact numerical values that are visualized in the graphs above.
             </p>
           )}
-        </div>
-
-        {/* Total Cost Formula */}
-        <div className="bg-gray-50 p-4 rounded-lg mb-6">
-          <h3 className="font-semibold text-gray-700 mb-3">Total Cost Formula</h3>
-          <div className="p-3 bg-white rounded">
-            <div className="text-sm mb-2">The total cost is calculated using the following formula:</div>
-            <div className="p-2 bg-gray-50 rounded font-mono text-sm mb-3">
-              TC = C₁ + C₂ + C₃
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-2 bg-cyan-50 rounded">
-                <div className="text-xs font-medium text-cyan-800 mb-1">C₁: Carton-Related Costs</div>
-                <div className="text-xs font-mono">Total_cartons × (Carton_handling_cost + Carton_unloading_cost)</div>
-              </div>
-              <div className="p-2 bg-green-50 rounded">
-                <div className="text-xs font-medium text-green-800 mb-1">C₂: Pallet-Related Storage Costs</div>
-                <div className="text-xs font-mono">N_pallets × Weekly_storage_cost × Storage_duration_weeks</div>
-              </div>
-              <div className="p-2 bg-indigo-50 rounded">
-                <div className="text-xs font-medium text-indigo-800 mb-1">C₃: Pallet-Related Transport Costs</div>
-                <div className="text-xs font-mono">min(LTL_cost, FTL_cost)</div>
-                <div className="text-xs mt-1">Where:</div>
-                <div className="text-xs font-mono pl-2">LTL_cost = N_pallets × Cost_per_pallet_LTL + (N_pallets × Pallet_handling_cost)</div>
-                <div className="text-xs font-mono pl-2">FTL_cost = ⌈N_pallets ÷ Pallets_per_trailer⌉ × Cost_per_trailer + (N_pallets × Pallet_handling_cost)</div>
-              </div>
-            </div>
-            <div className="mt-3 text-xs text-gray-600">
-              <p>Where:</p>
-              <ul className="list-disc pl-5 mt-1">
-                <li>Total_cartons = ⌈Total_units ÷ Units_per_carton⌉</li>
-                <li>N_pallets = ⌈Total_cartons ÷ Cartons_per_pallet⌉</li>
-                <li>Cost per unit = TC ÷ Total_units</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end">
-          <button
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all"
-          >
-            Next: Cost Optimization →
-          </button>
         </div>
       </div>
     </>
