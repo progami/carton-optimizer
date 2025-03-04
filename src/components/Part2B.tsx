@@ -1,39 +1,106 @@
 // src/components/Part2B.tsx
-import React from 'react';
+import { useState } from 'react';
 import { useCarton, useCostConfig } from '../contexts/CartonContext';
 import { useCostCalculation } from '../hooks/useCostCalculation';
 import { formatCurrency } from '../utils/formatters';
 import {
   generateComparativeData,
-  generateOptimalConfigByQuantity,
   generateComparativeCurves
 } from '../utils/calculators';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  Legend, ResponsiveContainer, ComposedChart, Bar
+  Legend, ResponsiveContainer, BarChart, Bar
 } from 'recharts';
+
+interface CartonUtilization {
+  percentage: number;
+  lastPalletCartons: number;
+  isFullyOptimized: boolean;
+}
+
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<any>;
+  label?: string | number;
+}
 
 const CostOptimization = () => {
   const { candidateCartons } = useCarton();
   const { costConfig, setCostConfig } = useCostConfig();
-  const { analysisResults } = useCostCalculation();
+  const [optimized, setOptimized] = useState(false);
 
+  // Generate comparative data for all carton configurations
   const comparativeData = generateComparativeData(costConfig.totalDemand, candidateCartons, costConfig);
-  const optimalByQuantity = generateOptimalConfigByQuantity(candidateCartons, costConfig);
+  
+  // Generate data for comparative cost curves
   const comparativeCurveData = generateComparativeCurves(candidateCartons, costConfig);
 
+  // Find the optimal configuration with the lowest cost per unit
   const optimalConfig = comparativeData.reduce(
     (best, current) => current.costPerUnit < best.costPerUnit ? current : best,
     comparativeData[0]
   );
+  
+  // Calculate utilization percentage for selected configuration
+  const calculateUtilization = (cartonId: number): CartonUtilization | null => {
+    const carton = candidateCartons.find(c => c.id === cartonId);
+    if (!carton) return null;
+    
+    const unitsPerCarton = carton.unitsPerCarton;
+    const cartonsPerPallet = carton.cartonsPerPallet;
+    
+    // Calculate current cartons needed
+    const currentCartons = Math.ceil(costConfig.totalDemand / unitsPerCarton);
+    
+    // Calculate the utilization of the last pallet
+    const cartonsInLastPallet = currentCartons % cartonsPerPallet || cartonsPerPallet;
+    const utilizationPercentage = (cartonsInLastPallet / cartonsPerPallet) * 100;
+    
+    return {
+      percentage: utilizationPercentage,
+      lastPalletCartons: cartonsInLastPallet,
+      isFullyOptimized: utilizationPercentage === 100
+    };
+  };
+  
+  // Function to optimize quantity to fully utilize pallets
+  const optimizeQuantity = () => {
+    const optimalCarton = candidateCartons.find(c => c.id === optimalConfig.cartonId);
+    if (!optimalCarton) return;
+
+    const unitsPerCarton = optimalCarton.unitsPerCarton;
+    const cartonsPerPallet = optimalCarton.cartonsPerPallet;
+    
+    // Calculate current cartons needed
+    const currentCartons = Math.ceil(costConfig.totalDemand / unitsPerCarton);
+    
+    // Calculate current pallets needed
+    const currentPallets = Math.ceil(currentCartons / cartonsPerPallet);
+    
+    // Calculate the carton count to exactly fill all pallets
+    const optimizedCartons = currentPallets * cartonsPerPallet;
+    
+    // Calculate the optimized unit quantity
+    const optimizedQuantity = optimizedCartons * unitsPerCarton;
+    
+    // Update the quantity
+    setCostConfig({...costConfig, totalDemand: optimizedQuantity});
+    setOptimized(true);
+    
+    // Reset optimized flag after 2 seconds (for feedback animation)
+    setTimeout(() => setOptimized(false), 2000);
+  };
+
+  // Get utilization data for the optimal configuration
+  const optimalUtilization = calculateUtilization(optimalConfig.cartonId);
 
   // Custom tooltip for cost curves
-  const ComparativeCurvesTooltip = ({ active, payload, label }) => {
+  const ComparativeCurvesTooltip = ({ active, payload, label }: TooltipProps) => {
     if (active && payload && payload.length) {
       return (
         <div className="custom-tooltip bg-white p-2 border border-gray-200 shadow-sm rounded-md">
-          <p className="font-medium text-sm mb-1">Quantity: {Math.round(label)}</p>
-          {payload.map((entry, index) => {
+          <p className="font-medium text-sm mb-1">Quantity: {typeof label === 'number' ? Math.round(label).toLocaleString() : label}</p>
+          {payload.map((entry: any, index: number) => {
             const cartonId = entry.dataKey.split('_')[1];
             const dimensionKey = `carton_${cartonId}_dim`;
             const dimensions = payload[0].payload[dimensionKey];
@@ -51,6 +118,12 @@ const CostOptimization = () => {
     return null;
   };
 
+  // Colors for charts
+  const colors = {
+    optimal: '#16a34a',
+    neutral: '#94a3b8'
+  };
+
   return (
     <>
       <div className="bg-white p-4 rounded-lg shadow-lg mb-6">
@@ -58,17 +131,41 @@ const CostOptimization = () => {
 
         <div className="mb-6">
           <h3 className="font-semibold text-gray-700 mb-3">Comparative Analysis</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            This page compares all carton configurations from Part 1 using the cost function from Part 2A.
+            Select a quantity to find the optimal configuration for your shipment.
+          </p>
+          
           <div className="p-4 bg-gray-50 rounded-lg">
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Analysis Quantity</label>
-              <div className="flex max-w-md">
-                <input
-                  type="number"
-                  value={costConfig.totalDemand}
-                  className="flex-1 p-2 border rounded"
-                  onChange={(e) => setCostConfig({...costConfig, totalDemand: parseFloat(e.target.value) || 0})}
-                />
+              <div className="flex flex-wrap justify-between items-end">
+                <div className="w-full md:w-auto mb-4 md:mb-0">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Analysis Quantity</label>
+                  <div className="flex max-w-md items-center space-x-2">
+                    <input
+                      type="number"
+                      value={costConfig.totalDemand}
+                      className="w-full md:w-48 p-2 border rounded"
+                      onChange={(e) => setCostConfig({...costConfig, totalDemand: parseFloat(e.target.value) || 0})}
+                    />
+                    <button
+                      onClick={optimizeQuantity}
+                      className={`px-3 py-2 ${optimized ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'} rounded hover:bg-blue-600 transition-all text-sm`}
+                      title="Adjust quantity to efficiently fill pallets with the optimal configuration"
+                    >
+                      {optimized ? 'Optimized!' : 'Optimize Quantity'}
+                    </button>
+                  </div>
+                </div>
               </div>
+              
+              {/* Utilization indicator */}
+              {optimalUtilization && !optimalUtilization.isFullyOptimized && (
+                <div className="mt-2 text-xs text-amber-600">
+                  Last pallet is only {Math.round(optimalUtilization.percentage)}% utilized 
+                  ({optimalUtilization.lastPalletCartons} of {candidateCartons.find(c => c.id === optimalConfig.cartonId)?.cartonsPerPallet || '-'} cartons)
+                </div>
+              )}
             </div>
 
             <div className="overflow-x-auto">
@@ -87,7 +184,10 @@ const CostOptimization = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {comparativeData.map((data, index) => (
-                    <tr key={index} className={data.cartonId === optimalConfig.cartonId ? 'bg-green-50' : ''}>
+                    <tr 
+                      key={index} 
+                      className={data.cartonId === optimalConfig.cartonId ? 'bg-green-50' : ''}
+                    >
                       <td className="py-2 px-3">{data.dimensions}</td>
                       <td className="py-2 px-3">{data.unitsPerCarton}</td>
                       <td className="py-2 px-3">{data.cartonsPerPallet}</td>
@@ -117,7 +217,11 @@ const CostOptimization = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
             <h3 className="font-semibold text-gray-700 mb-3">Cost Curve Comparison</h3>
-            <div className="h-64 bg-white rounded-lg p-3">
+            <p className="text-sm text-gray-600 mb-2">
+              This graph plots the cost per unit against quantity for each candidate configuration, 
+              showing how costs change as volume increases.
+            </p>
+            <div className="h-72 bg-white rounded-lg p-3 border">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={comparativeCurveData}
@@ -141,10 +245,7 @@ const CostOptimization = () => {
                       type="monotone"
                       dataKey={`carton_${carton.id}`}
                       stroke={
-                        carton.id === 1 ? '#0891b2' :
-                        carton.id === 2 ? '#16a34a' :
-                        carton.id === 3 ? '#4f46e5' :
-                        `#${Math.floor(Math.random()*16777215).toString(16)}`
+                        carton.id === optimalConfig.cartonId ? colors.optimal : colors.neutral
                       }
                       name={`${carton.length}×${carton.width}×${carton.height} cm`}
                       activeDot={{ r: 8 }}
@@ -154,15 +255,11 @@ const CostOptimization = () => {
                 </LineChart>
               </ResponsiveContainer>
             </div>
-            <div className="mt-2 text-sm text-gray-600">
-              <p>This graph overlays cost per unit curves for all carton configurations,
-              clearly showing which configuration is optimal at different quantity levels.</p>
-            </div>
           </div>
 
           <div>
             <h3 className="font-semibold text-gray-700 mb-3">Optimal Solution</h3>
-            <div className="p-4 bg-green-50 rounded-lg">
+            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
               <div className="flex items-center mb-3">
                 <div className="w-12 h-12 flex-shrink-0 rounded-full bg-green-100 flex items-center justify-center">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -194,17 +291,64 @@ const CostOptimization = () => {
                 </div>
               </div>
 
+              {/* Simultaneous Cost Component Comparison */}
+              <div className="mb-4">
+                <div className="text-sm font-medium text-gray-700 mb-2">Cost Component Breakdown</div>
+                <div className="h-40 bg-white rounded-lg p-2 border">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={comparativeData}
+                      layout="vertical"
+                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        type="number"
+                        tickFormatter={(value: number) => `£${value.toFixed(2)}`}
+                      />
+                      <YAxis 
+                        dataKey="dimensions" 
+                        type="category"
+                        width={100}
+                      />
+                      <Tooltip 
+                        formatter={(value: number) => [`£${value.toFixed(3)}`, 'Cost per unit']}
+                      />
+                      <Legend />
+                      <Bar 
+                        name="Carton Related" 
+                        dataKey="cartonCostPerUnit" 
+                        stackId="a" 
+                        fill="#0891b2" 
+                      />
+                      <Bar 
+                        name="Storage" 
+                        dataKey="storageCostPerUnit" 
+                        stackId="a" 
+                        fill="#22c55e" 
+                      />
+                      <Bar 
+                        name="Transportation" 
+                        dataKey="transportCostPerUnit" 
+                        stackId="a" 
+                        fill="#4ade80" 
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                 <div className="bg-cyan-50 p-3 rounded">
-                  <div className="text-xs text-cyan-800 font-medium">Carton Costs (C₁)</div>
+                  <div className="text-xs text-cyan-800 font-medium">Carton Costs</div>
                   <div className="text-lg font-medium">{formatCurrency(optimalConfig.cartonCosts)}</div>
                 </div>
                 <div className="bg-green-50 p-3 rounded">
-                  <div className="text-xs text-green-800 font-medium">Storage Costs (C₂)</div>
+                  <div className="text-xs text-green-800 font-medium">Storage Costs</div>
                   <div className="text-lg font-medium">{formatCurrency(optimalConfig.storageCosts)}</div>
                 </div>
                 <div className="bg-indigo-50 p-3 rounded">
-                  <div className="text-xs text-indigo-800 font-medium">Transport Costs (C₃)</div>
+                  <div className="text-xs text-indigo-800 font-medium">Transport Costs</div>
                   <div className="text-lg font-medium">{formatCurrency(optimalConfig.transportCosts)}</div>
                 </div>
               </div>
@@ -221,61 +365,6 @@ const CostOptimization = () => {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Optimal Configuration by Quantity */}
-        <div className="mb-6">
-          <h3 className="font-semibold text-gray-700 mb-3">Optimal Configuration by Quantity</h3>
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 mb-3">
-              Different carton configurations become optimal at different quantity levels.
-              This table shows which configuration yields the lowest cost per unit at key quantity intervals.
-            </p>
-            <div className="overflow-x-auto">
-              <table className="min-w-full bg-white">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Optimal Carton</th>
-                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost Per Unit</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {optimalByQuantity.map((data, index) => (
-                    <tr key={index}>
-                      <td className="py-2 px-3">{data.quantity.toLocaleString()}</td>
-                      <td className="py-2 px-3">{data.dimensions} cm</td>
-                      <td className="py-2 px-3">{formatCurrency(data.costPerUnit)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h3 className="font-semibold text-gray-700 mb-3">Optimization Insights</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-3 bg-cyan-50 rounded-lg">
-              <h4 className="text-sm font-medium text-cyan-800 mb-2">Cost Structure</h4>
-              <p className="text-sm text-gray-700">
-                The optimal configuration balances the trade-off between carton-related costs and pallet-related costs to minimize the overall cost per unit.
-              </p>
-            </div>
-            <div className="p-3 bg-green-50 rounded-lg">
-              <h4 className="text-sm font-medium text-green-800 mb-2">Quantity Breakpoints</h4>
-              <p className="text-sm text-gray-700">
-                Different carton configurations become optimal at different quantity levels due to the step-function nature of pallet costs.
-              </p>
-            </div>
-            <div className="p-3 bg-indigo-50 rounded-lg">
-              <h4 className="text-sm font-medium text-indigo-800 mb-2">Transport Mode Efficiency</h4>
-              <p className="text-sm text-gray-700">
-                The cost comparison automatically evaluates whether LTL or FTL transport is more cost-effective for each configuration.
-              </p>
             </div>
           </div>
         </div>
