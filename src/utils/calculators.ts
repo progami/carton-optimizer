@@ -30,7 +30,8 @@ interface CostConfigType {
 interface CostCalculationResult {
   quantity: number;
   totalCartons: number;
-  totalPallets: number;
+  totalPallets: number;      // Calculated (fractional) pallets - for display only
+  physicalPallets: number;   // Actual physical (whole) pallets - used for cost calculations
   cartonCosts: number;
   storageCosts: number;
   palletHandlingCosts: number;
@@ -96,73 +97,78 @@ export const calculateCostComponents = (
   const unitsPerCarton = selectedCarton.unitsPerCarton;
   const cartonsPerPallet = selectedCarton.cartonsPerPallet;
 
-  // Calculate derived quantities - always constant for a given quantity
+  // Calculate derived quantities - always use ceiling for actual cartons needed
   const totalCartons = Math.ceil(quantity / unitsPerCarton);
-
-  // Calculate total pallets using decimal for smooth calculation
-  // This eliminates the step function behavior
-  const totalPallets = totalCartons / cartonsPerPallet;
-
-  // C₁ = Carton-Related Costs - should be constant regardless of transport mode
+  
+  // Calculate both fractional pallets (for display) and whole pallets (for costs)
+  const calculatedPallets = totalCartons / cartonsPerPallet;
+  const physicalPallets = Math.ceil(calculatedPallets);
+  
+  // C₁ = Carton-Related Costs
   const cartonHandlingFee = costConfig.cartonHandlingCost;
   const cartonUnloadingFee = costConfig.cartonUnloadingCost;
   const cartonCosts = totalCartons * (cartonHandlingFee + cartonUnloadingFee);
 
-  // C₂ = Pallet-Related Storage Costs - should be constant regardless of transport mode
+  // C₂ = Pallet-Related Storage Costs - ALWAYS use whole pallets
   const palletStorageFee = costConfig.palletStorageCostPerWeek;
   const storageWeeks = costConfig.storageWeeks;
-  const storageCosts = totalPallets * palletStorageFee * storageWeeks;
+  const storageCosts = physicalPallets * palletStorageFee * storageWeeks;
 
-  // C₃ = Pallet-Related Transportation Costs
+  // C₃ = Pallet-Related Transportation Costs - ALWAYS use whole pallets
   const palletHandlingFee = costConfig.palletHandlingCost;
-  const palletHandlingCosts = totalPallets * palletHandlingFee;
+  const palletHandlingCosts = physicalPallets * palletHandlingFee;
 
   // LTL_cost = N_pallets × Cost_per_pallet_LTL + (N_pallets × Pallet_handling_cost)
   const ltlCostPerPallet = costConfig.ltlCostPerPallet;
-  const ltlCost = totalPallets * ltlCostPerPallet + palletHandlingCosts;
+  const ltlCost = physicalPallets * ltlCostPerPallet;
 
-  // FTL_cost = Ceiling(N_pallets ÷ Pallets_per_trailer) × Cost_per_trailer + (N_pallets × Pallet_handling_cost)
+  // FTL_cost = Ceiling(N_pallets ÷ Pallets_per_trailer) × Cost_per_trailer
   const ftlCostPerTruck = costConfig.ftlCostPerTruck;
   const palletsPerTruck = costConfig.palletsPerTruck;
-  const ftlCost = Math.ceil(totalPallets / palletsPerTruck) * ftlCostPerTruck + palletHandlingCosts;
+  const ftlCost = Math.ceil(physicalPallets / palletsPerTruck) * ftlCostPerTruck;
 
   // Choose transport mode based on setting or auto-select
   let transportCosts;
   let transportMode;
 
   if (costConfig.transportMode === 'ltl') {
-    transportCosts = ltlCost;
+    transportCosts = ltlCost + palletHandlingCosts;
     transportMode = 'LTL';
   } else if (costConfig.transportMode === 'ftl') {
-    transportCosts = ftlCost;
+    transportCosts = ftlCost + palletHandlingCosts;
     transportMode = 'FTL';
   } else {
     // Auto mode - choose the minimum cost option
-    transportCosts = Math.min(ltlCost, ftlCost);
-    transportMode = ltlCost <= ftlCost ? 'LTL' : 'FTL';
+    if (ltlCost <= ftlCost) {
+      transportCosts = ltlCost + palletHandlingCosts;
+      transportMode = 'LTL';
+    } else {
+      transportCosts = ftlCost + palletHandlingCosts;
+      transportMode = 'FTL';
+    }
   }
 
   // Total costs
   const totalCost = cartonCosts + storageCosts + transportCosts;
 
-  // Use exact math to avoid floating point issues
-  // For cost per unit, round to 2 decimal places
-  const costPerUnit = parseFloat((totalCost / quantity).toFixed(2));
+  // Calculate cost per unit
+  const costPerUnit = totalCost / quantity;
 
   // Calculate component costs per unit
-  const cartonCostPerUnit = parseFloat((cartonCosts / quantity).toFixed(2));
-  const storageCostPerUnit = parseFloat((storageCosts / quantity).toFixed(2));
-  const transportCostPerUnit = parseFloat((transportCosts / quantity).toFixed(2));
+  const cartonCostPerUnit = cartonCosts / quantity;
+  const storageCostPerUnit = storageCosts / quantity;
+  const transportCostPerUnit = transportCosts / quantity;
 
   // Calculate component percentages
-  const cartonCostPercentage = parseFloat(((cartonCosts / totalCost) * 100).toFixed(2));
-  const storageCostPercentage = parseFloat(((storageCosts / totalCost) * 100).toFixed(2));
-  const transportCostPercentage = parseFloat(((transportCosts / totalCost) * 100).toFixed(2));
+  const cartonCostPercentage = (cartonCosts / totalCost) * 100;
+  const storageCostPercentage = (storageCosts / totalCost) * 100;
+  const transportCostPercentage = (transportCosts / totalCost) * 100;
 
   return {
     quantity,
     totalCartons,
-    totalPallets,
+    totalPallets: calculatedPallets,   // Fractional number for display
+    physicalPallets,                   // Whole number for cost calculations
     cartonCosts,
     storageCosts,
     palletHandlingCosts,
@@ -194,16 +200,40 @@ export const generateScalingData = (
   const selectedCarton = candidateCartons.find(c => c.id === (cartonId || selectedCartonId));
   if (!selectedCarton) return data;
 
-  // Calculate step size based on carton/pallet to ensure smooth curve
-  const unitsPerCarton = selectedCarton.unitsPerCarton;
-  const cartonsPerPallet = selectedCarton.cartonsPerPallet;
-  const unitsPerPallet = unitsPerCarton * cartonsPerPallet;
-
-  // Use units per pallet as step size for smoother curves
-  const step = unitsPerPallet;
-
-  // Generate data points
-  for (let quantity = step; quantity <= maxQuantity; quantity += step) {
+  // Always include a data point at the current quantity
+  const currentQuantity = costConfig.totalDemand;
+  
+  // Generate at least 20 data points, with more for larger ranges
+  const minPoints = 20;
+  const pointCount = Math.max(minPoints, Math.min(40, maxQuantity / 500));
+  
+  // Create an array of quantities to calculate
+  const quantities: number[] = [];
+  
+  // Always include small quantities for better curve visualization
+  quantities.push(1);
+  if (maxQuantity > 100) quantities.push(100);
+  if (maxQuantity > 1000) quantities.push(1000);
+  
+  // Then add evenly spaced points
+  const step = maxQuantity / pointCount;
+  for (let i = 1; i <= pointCount; i++) {
+    const qty = Math.round(i * step);
+    if (qty > quantities[quantities.length - 1]) {
+      quantities.push(qty);
+    }
+  }
+  
+  // Always include the current quantity
+  if (!quantities.includes(currentQuantity)) {
+    quantities.push(currentQuantity);
+  }
+  
+  // Sort quantities and remove duplicates
+  const uniqueQuantities = [...new Set(quantities)].sort((a, b) => a - b);
+  
+  // Calculate cost data for each quantity
+  for (const quantity of uniqueQuantities) {
     const costData = calculateCostComponents(quantity, cartonId, selectedCartonId, candidateCartons, costConfig);
     if (costData) {
       data.push(costData);
@@ -296,7 +326,7 @@ export const generateCostComponentsData = (
     storageCosts: item.storageCosts / item.quantity,
     transportCosts: item.transportCosts / item.quantity,
     totalCost: item.costPerUnit,
-    totalPallets: item.totalPallets
+    totalPallets: item.physicalPallets
   }));
 };
 
