@@ -2,37 +2,6 @@ import { useState, useEffect } from 'react';
 import { useCarton, useCostConfig, useProvider } from '../contexts/CartonContext';
 import { useCostCalculation } from '../hooks/useCostCalculation';
 import { formatCurrency } from '../utils/formatters';
-import {
-  generateScalingData,
-  generateIntervalData
-} from '../utils/calculators';
-
-// Define types for chart data
-type CostData = {
-  quantity: number;
-  totalCartons: number;
-  totalPallets: number;
-  physicalPallets: number;  // Added for physical (whole) pallets
-  cartonCosts: number;
-  storageCosts: number;
-  palletHandlingCosts: number;
-  transportCosts: number;
-  totalCost: number;
-  costPerUnit: number;
-  cartonCostPercentage: number;
-  storageCostPercentage: number;
-  transportCostPercentage: number;
-  ltlCost: number;
-  ftlCost: number;
-  transportMode: string;
-  
-  // Add these fields for per-unit cost calculations
-  cartonCostPerUnit: number;
-  storageCostPerUnit: number;
-  transportCostPerUnit: number;
-  
-  [key: string]: any; // For any other properties
-};
 
 const CostAnalysis = () => {
   const { candidateCartons, getSelectedCartonId } = useCarton();
@@ -43,7 +12,7 @@ const CostAnalysis = () => {
   const [showDetailedRates, setShowDetailedRates] = useState(false);
   const [showCostFunction, setShowCostFunction] = useState(false);
   const [optimized, setOptimized] = useState(false);
-  const [showAbsoluteValues, setShowAbsoluteValues] = useState(false); // For bar charts
+  const [showAbsoluteValues, setShowAbsoluteValues] = useState(false);
 
   // Set the initial selected carton ID based on what's selected in Part 1
   useEffect(() => {
@@ -110,12 +79,12 @@ const CostAnalysis = () => {
   
   // Set up colors for cost components
   const colors = {
-    cartonHandling: '#0891b2',      // Cyan
-    cartonUnloading: '#06b6d4',     // Darker cyan
-    palletHandling: '#a7f3d0',      // Light green
-    storage: '#22c55e',             // Medium green
-    transport: '#4ade80',           // Light green
-    total: '#f43f5e'                // Rose/red for total
+    cartonHandling: '#0891b2',    // Cyan
+    cartonUnloading: '#06b6d4',   // Darker cyan
+    palletHandling: '#a7f3d0',    // Light green
+    storage: '#22c55e',           // Medium green
+    transport: '#4ade80',         // Light green
+    total: '#f43f5e'              // Rose/red for total
   };
 
   // Get the selected carton for the cost function
@@ -128,7 +97,6 @@ const CostAnalysis = () => {
 
   // Calculate utilization for display
   const utilization = calculateUtilization();
-  const isFullyOptimized = utilization === 100;
 
   // Calculate detailed cost breakdowns
   const getDetailedCosts = () => {
@@ -202,8 +170,9 @@ const CostAnalysis = () => {
       <div className="bg-white p-4 rounded-lg shadow-lg mb-6">
         <h2 className="text-xl font-semibold text-gray-700 border-b pb-2 mb-4">Part 2A: Cost Analysis</h2>
 
-        {/* Consolidated Configuration Panel */}
+        {/* Configuration Panel */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Order Configuration */}
           <div className="bg-gray-50 p-3 rounded-lg shadow-sm">
             <h3 className="text-sm font-medium text-gray-700 mb-2">Order Configuration</h3>
             
@@ -266,6 +235,7 @@ const CostAnalysis = () => {
             </div>
           </div>
           
+          {/* Cost Parameters */}
           <div className="bg-gray-50 p-3 rounded-lg shadow-sm">
             <h3 className="text-sm font-medium text-gray-700 mb-2">Cost Parameters</h3>
             
@@ -594,35 +564,30 @@ const CostAnalysis = () => {
             </div>
           )}
           
-          {/* Cost summary */}
-          <div className="mb-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-3 grid grid-cols-3 gap-4">
-                <div className="text-center bg-gray-50 p-2 rounded-lg shadow-sm">
-                  <div className="text-sm font-medium text-gray-700 mb-1">Carton Count</div>
-                  <div className="text-xl font-medium">{displayCartonCount}</div>
-                </div>
-                <div className="text-center bg-gray-50 p-2 rounded-lg shadow-sm">
-                  <div className="text-sm font-medium text-gray-700 mb-1">Total Pallets</div>
-                  <div className="text-xl font-medium">{analysisResults ? analysisResults.physicalPallets : '-'}</div>
-                </div>
-                <div className="text-center bg-gray-50 p-2 rounded-lg shadow-sm">
-                  <div className="text-sm font-medium text-gray-700 mb-1">Transport Mode</div>
-                  <div className="text-xl font-medium">{analysisResults?.transportMode ?? '-'}</div>
-                </div>
+          {/* Summary Stats */}
+          <div className="grid grid-cols-3 md:grid-cols-4 gap-4 mb-5">
+            <div className="bg-gray-50 p-3 rounded-lg text-center shadow-sm">
+              <div className="text-sm font-medium text-gray-600 mb-1">Carton Count</div>
+              <div className="text-xl font-semibold">{displayCartonCount}</div>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-lg text-center shadow-sm">
+              <div className="text-sm font-medium text-gray-600 mb-1">Total Pallets</div>
+              <div className="text-xl font-semibold">{analysisResults ? analysisResults.physicalPallets : '-'}</div>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-lg text-center shadow-sm">
+              <div className="text-sm font-medium text-gray-600 mb-1">Transport Mode</div>
+              <div className="text-xl font-semibold">{analysisResults?.transportMode ?? '-'}</div>
+            </div>
+            <div className="bg-rose-100 p-3 rounded-lg text-center shadow-sm">
+              <div className="text-sm font-medium text-rose-700 mb-1">
+                {showAbsoluteValues ? 'Total Cost' : 'Cost Per Unit'}
               </div>
-              
-              <div className="md:col-span-1 bg-rose-100 p-2 rounded-lg text-center flex flex-col justify-center">
-                <div className="text-sm text-rose-800">
-                  {showAbsoluteValues ? 'Total Cost' : 'Cost Per Unit'}
-                </div>
-                <div className="text-xl font-bold text-rose-800">
-                  {analysisResults 
-                    ? (showAbsoluteValues 
-                        ? formatCurrency(analysisResults.totalCost) 
-                        : formatCurrency(analysisResults.costPerUnit))
-                    : '-'}
-                </div>
+              <div className="text-xl font-bold text-rose-700">
+                {analysisResults 
+                  ? (showAbsoluteValues 
+                      ? formatCurrency(analysisResults.totalCost) 
+                      : formatCurrency(analysisResults.costPerUnit))
+                  : '-'}
               </div>
             </div>
           </div>
@@ -630,193 +595,177 @@ const CostAnalysis = () => {
           {/* Enhanced Cost Breakdown with Individual Components */}
           {analysisResults && detailedCosts && (
             <div className="mb-6">
-              {/* Cost Category Headers - Side by Side */}
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center">
-                  <h4 className="font-medium text-cyan-800">Carton Related Costs</h4>
-                  <span className="text-sm font-medium ml-2">
+              {/* ===== CARTON RELATED COSTS ===== */}
+              <div className="mb-6">
+                <div className="flex justify-between mb-2">
+                  <h4 className="font-medium text-gray-700">Carton Related Costs</h4>
+                  <div className="text-sm text-gray-700 font-medium">
                     {showAbsoluteValues 
                       ? formatCurrency(detailedCosts.Cost_carton)
                       : formatCurrency(detailedCosts.Cost_cartonPerUnit)} 
                     ({detailedCosts.Cost_cartonPercentage.toFixed(1)}%)
-                  </span>
+                  </div>
                 </div>
-              </div>
-              
-              {/* Carton Related Costs Bar */}
-              <div className="mb-4">
-                <div className="w-full bg-gray-200 rounded-md h-8">
-                  <div 
-                    className="h-8 rounded-md flex"
-                    style={{ 
-                      width: `${detailedCosts.Cost_cartonPercentage}%`,
-                      backgroundColor: colors.cartonHandling 
-                    }}
-                  >
-                    {/* C1: Carton Handling - sub-bar */}
+                
+                {/* Progress bar */}
+                <div className="w-full bg-gray-200 rounded-md h-6 mb-1">
+                  <div className="flex h-6 rounded-md">
+                    {/* C1: Carton Handling */}
                     <div 
                       className="h-full" 
                       style={{ 
-                        width: `${(detailedCosts.C1_cartonHandlingPercentage / detailedCosts.Cost_cartonPercentage) * 100}%`,
+                        width: `${detailedCosts.C1_cartonHandlingPercentage}%`,
                         backgroundColor: colors.cartonHandling 
                       }}
                     ></div>
-                    {/* C2: Carton Unloading - sub-bar */}
+                    
+                    {/* C2: Carton Unloading */}
                     <div 
                       className="h-full" 
                       style={{ 
-                        width: `${(detailedCosts.C2_cartonUnloadingPercentage / detailedCosts.Cost_cartonPercentage) * 100}%`,
+                        width: `${detailedCosts.C2_cartonUnloadingPercentage}%`,
                         backgroundColor: colors.cartonUnloading 
                       }}
                     ></div>
                   </div>
                 </div>
                 
-                {/* C1: Carton Handling - details */}
-                <div className="pl-4 mt-2 mb-2">
-                  <div className="flex justify-between items-center mb-1">
+                {/* Legend & details */}
+                <div className="flex">
+                  {/* C1: Carton Handling */}
+                  <div className="flex-1">
                     <div className="flex items-center">
-                      <div className="w-3 h-3" style={{ backgroundColor: colors.cartonHandling }}></div>
-                      <span className="text-sm font-medium ml-2">C₁: Carton Handling</span>
+                      <div className="w-3 h-3 mr-1" style={{ backgroundColor: colors.cartonHandling }}></div>
+                      <div className="text-sm font-medium">C₁: Carton Handling</div>
                     </div>
-                    <span className="text-sm font-medium">
+                    <div className="text-xs text-gray-500 mt-1">
+                      {displayCartonCount} cartons × £{costConfig.cartonHandlingCost.toFixed(2)}
+                    </div>
+                    <div className="text-sm font-medium mt-1">
                       {showAbsoluteValues 
                         ? formatCurrency(detailedCosts.C1_cartonHandling)
                         : formatCurrency(detailedCosts.C1_cartonHandlingPerUnit)} 
                       ({detailedCosts.C1_cartonHandlingPercentage.toFixed(1)}%)
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500 ml-6">
-                    {displayCartonCount} cartons × £{costConfig.cartonHandlingCost.toFixed(2)}
-                  </div>
-                </div>
-                
-                {/* C2: Carton Unloading - details */}
-                <div className="pl-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3" style={{ backgroundColor: colors.cartonUnloading }}></div>
-                      <span className="text-sm font-medium ml-2">C₂: Carton Unloading</span>
                     </div>
-                    <span className="text-sm font-medium">
+                  </div>
+                  
+                  {/* C2: Carton Unloading */}
+                  <div className="flex-1">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 mr-1" style={{ backgroundColor: colors.cartonUnloading }}></div>
+                      <div className="text-sm font-medium">C₂: Carton Unloading</div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {displayCartonCount} cartons × £{costConfig.cartonUnloadingCost.toFixed(2)}
+                    </div>
+                    <div className="text-sm font-medium mt-1">
                       {showAbsoluteValues 
                         ? formatCurrency(detailedCosts.C2_cartonUnloading)
                         : formatCurrency(detailedCosts.C2_cartonUnloadingPerUnit)} 
                       ({detailedCosts.C2_cartonUnloadingPercentage.toFixed(1)}%)
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500 ml-6">
-                    {displayCartonCount} cartons × £{costConfig.cartonUnloadingCost.toFixed(2)}
+                    </div>
                   </div>
                 </div>
               </div>
               
-              {/* Pallet Related Costs Header */}
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center">
-                  <h4 className="font-medium text-green-800">Pallet Related Costs</h4>
-                  <span className="text-sm font-medium ml-2">
+              {/* ===== PALLET RELATED COSTS ===== */}
+              <div>
+                <div className="flex justify-between mb-2">
+                  <h4 className="font-medium text-gray-700">Pallet Related Costs</h4>
+                  <div className="text-sm text-gray-700 font-medium">
                     {showAbsoluteValues 
                       ? formatCurrency(detailedCosts.Cost_pallet)
                       : formatCurrency(detailedCosts.Cost_palletPerUnit)} 
                     ({detailedCosts.Cost_palletPercentage.toFixed(1)}%)
-                  </span>
+                  </div>
                 </div>
-              </div>
-              
-              {/* Pallet Related Costs Bar */}
-              <div>
-                <div className="w-full bg-gray-200 rounded-md h-8">
-                  <div 
-                    className="h-8 rounded-md flex"
-                    style={{ 
-                      width: `${detailedCosts.Cost_palletPercentage}%`,
-                      backgroundColor: colors.palletHandling 
-                    }}
-                  >
-                    {/* C3: Pallet Handling - sub-bar */}
+                
+                {/* Progress bar */}
+                <div className="w-full bg-gray-200 rounded-md h-6 mb-1">
+                  <div className="flex h-6 rounded-md">
+                    {/* C3: Pallet Handling */}
                     <div 
                       className="h-full" 
                       style={{ 
-                        width: `${(detailedCosts.C3_palletHandlingPercentage / detailedCosts.Cost_palletPercentage) * 100}%`,
+                        width: `${detailedCosts.C3_palletHandlingPercentage}%`,
                         backgroundColor: colors.palletHandling 
                       }}
                     ></div>
-                    {/* C4: Storage - sub-bar */}
+                    
+                    {/* C4: Storage */}
                     <div 
                       className="h-full" 
                       style={{ 
-                        width: `${(detailedCosts.C4_storagePercentage / detailedCosts.Cost_palletPercentage) * 100}%`,
+                        width: `${detailedCosts.C4_storagePercentage}%`,
                         backgroundColor: colors.storage 
                       }}
                     ></div>
-                    {/* C5: Transportation - sub-bar */}
+                    
+                    {/* C5: Transportation */}
                     <div 
                       className="h-full" 
                       style={{ 
-                        width: `${(detailedCosts.C5_transportationPercentage / detailedCosts.Cost_palletPercentage) * 100}%`,
+                        width: `${detailedCosts.C5_transportationPercentage}%`,
                         backgroundColor: colors.transport 
                       }}
                     ></div>
                   </div>
                 </div>
                 
-                {/* C3: Pallet Handling - details */}
-                <div className="pl-4 mt-2 mb-2">
-                  <div className="flex justify-between items-center mb-1">
+                {/* Legend & details */}
+                <div className="grid grid-cols-3 gap-4">
+                  {/* C3: Pallet Handling */}
+                  <div>
                     <div className="flex items-center">
-                      <div className="w-3 h-3" style={{ backgroundColor: colors.palletHandling }}></div>
-                      <span className="text-sm font-medium ml-2">C₃: Pallet Handling</span>
+                      <div className="w-3 h-3 mr-1" style={{ backgroundColor: colors.palletHandling }}></div>
+                      <div className="text-sm font-medium">C₃: Pallet Handling</div>
                     </div>
-                    <span className="text-sm font-medium">
+                    <div className="text-xs text-gray-500 mt-1">
+                      {analysisResults.physicalPallets} pallets × £{costConfig.palletHandlingCost.toFixed(2)}
+                    </div>
+                    <div className="text-sm font-medium mt-1">
                       {showAbsoluteValues 
                         ? formatCurrency(detailedCosts.C3_palletHandling)
                         : formatCurrency(detailedCosts.C3_palletHandlingPerUnit)} 
                       ({detailedCosts.C3_palletHandlingPercentage.toFixed(1)}%)
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500 ml-6">
-                    {analysisResults.physicalPallets} pallets × £{costConfig.palletHandlingCost.toFixed(2)}
-                  </div>
-                </div>
-                
-                {/* C4: Storage - details */}
-                <div className="pl-4 mb-2">
-                  <div className="flex justify-between items-center mb-1">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3" style={{ backgroundColor: colors.storage }}></div>
-                      <span className="text-sm font-medium ml-2">C₄: Storage</span>
                     </div>
-                    <span className="text-sm font-medium">
+                  </div>
+                  
+                  {/* C4: Storage */}
+                  <div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 mr-1" style={{ backgroundColor: colors.storage }}></div>
+                      <div className="text-sm font-medium">C₄: Storage</div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {analysisResults.physicalPallets} pallets × £{costConfig.palletStorageCostPerWeek.toFixed(2)}/week × {costConfig.storageWeeks} weeks
+                    </div>
+                    <div className="text-sm font-medium mt-1">
                       {showAbsoluteValues 
                         ? formatCurrency(detailedCosts.C4_storage)
                         : formatCurrency(detailedCosts.C4_storagePerUnit)} 
                       ({detailedCosts.C4_storagePercentage.toFixed(1)}%)
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500 ml-6">
-                    {analysisResults.physicalPallets} pallets × £{costConfig.palletStorageCostPerWeek.toFixed(2)}/week × {costConfig.storageWeeks} weeks
-                  </div>
-                </div>
-                
-                {/* C5: Transportation - details */}
-                <div className="pl-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3" style={{ backgroundColor: colors.transport }}></div>
-                      <span className="text-sm font-medium ml-2">C₅: Transportation ({analysisResults.transportMode})</span>
                     </div>
-                    <span className="text-sm font-medium">
+                  </div>
+                  
+                  {/* C5: Transportation */}
+                  <div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 mr-1" style={{ backgroundColor: colors.transport }}></div>
+                      <div className="text-sm font-medium">C₅: Transportation ({analysisResults.transportMode})</div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {costConfig.transportMode === 'ltl' 
+                        ? `${analysisResults.physicalPallets} pallets × £${costConfig.ltlCostPerPallet.toFixed(2)}`
+                        : `${Math.ceil(analysisResults.physicalPallets / costConfig.palletsPerTruck)} trucks × £${costConfig.ftlCostPerTruck.toFixed(2)}`
+                      }
+                    </div>
+                    <div className="text-sm font-medium mt-1">
                       {showAbsoluteValues 
                         ? formatCurrency(detailedCosts.C5_transportation)
                         : formatCurrency(detailedCosts.C5_transportationPerUnit)} 
                       ({detailedCosts.C5_transportationPercentage.toFixed(1)}%)
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500 ml-6">
-                    {costConfig.transportMode === 'ltl' 
-                      ? `${analysisResults.physicalPallets} pallets × £${costConfig.ltlCostPerPallet.toFixed(2)}`
-                      : `${Math.ceil(analysisResults.physicalPallets / costConfig.palletsPerTruck)} trucks × £${costConfig.ftlCostPerTruck.toFixed(2)}`}
+                    </div>
                   </div>
                 </div>
               </div>

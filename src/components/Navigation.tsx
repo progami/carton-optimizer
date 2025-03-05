@@ -2,7 +2,7 @@
 import { FC } from 'react';
 
 // Define the section types
-type SectionType = 'input' | 'part2a' | 'part2b';
+type SectionType = 'input' | 'part2a' | 'part2b' | 'part3';
 
 // Define the props interface
 interface NavigationProps {
@@ -17,24 +17,30 @@ const Navigation: FC<NavigationProps> = ({ activeSection, setActiveSection }) =>
         <div className="text-lg font-semibold">
           Carton Optimization System
         </div>
-        <div className="flex space-x-4">
+        <div className="flex space-x-2">
           <button
             onClick={() => setActiveSection('input')}
-            className={`px-4 py-2 rounded-md ${activeSection === 'input' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+            className={`px-3 py-2 rounded-md ${activeSection === 'input' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
             Input
           </button>
           <button
             onClick={() => setActiveSection('part2a')}
-            className={`px-4 py-2 rounded-md ${activeSection === 'part2a' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+            className={`px-3 py-2 rounded-md ${activeSection === 'part2a' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
             Analysis
           </button>
           <button
             onClick={() => setActiveSection('part2b')}
-            className={`px-4 py-2 rounded-md ${activeSection === 'part2b' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+            className={`px-3 py-2 rounded-md ${activeSection === 'part2b' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
             Optimization
+          </button>
+          <button
+            onClick={() => setActiveSection('part3')}
+            className={`px-3 py-2 rounded-md ${activeSection === 'part3' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+          >
+            Container
           </button>
         </div>
       </div>

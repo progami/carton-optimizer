@@ -6,11 +6,12 @@ import Navigation from './Navigation';
 import CandidateConfigurations from './Part1';
 import CostAnalysis from './Part2A';
 import CostOptimization from './Part2B';
+import ContainerOptimization from './Part3';
 import Footer from './Footer';
 import { CartonProvider } from '../contexts/CartonContext';
 
 // Define the section type to match Navigation and Footer components
-type SectionType = 'input' | 'part2a' | 'part2b';
+type SectionType = 'input' | 'part2a' | 'part2b' | 'part3';
 
 // This component handles navigation and renders the appropriate content
 const AppContent = () => {
@@ -26,6 +27,8 @@ const AppContent = () => {
       setActiveSection('part2a');
     } else if (location.pathname === '/part2b') {
       setActiveSection('part2b');
+    } else if (location.pathname === '/part3') {
+      setActiveSection('part3');
     }
   }, [location.pathname]);
 
@@ -39,6 +42,8 @@ const AppContent = () => {
       navigate('/part2a');
     } else if (section === 'part2b') {
       navigate('/part2b');
+    } else if (section === 'part3') {
+      navigate('/part3');
     }
   };
 
@@ -51,6 +56,7 @@ const AppContent = () => {
         <Route path="/input" element={<CandidateConfigurations />} />
         <Route path="/part2a" element={<CostAnalysis />} />
         <Route path="/part2b" element={<CostOptimization />} />
+        <Route path="/part3" element={<ContainerOptimization />} />
       </Routes>
       <Footer activeSection={activeSection} setActiveSection={handleSectionChange} />
     </div>
