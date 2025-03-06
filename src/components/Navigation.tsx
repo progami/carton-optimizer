@@ -1,5 +1,6 @@
 // src/components/Navigation.tsx
 import { FC } from 'react';
+import { Link } from 'react-router-dom';
 
 // Define the section types
 type SectionType = 'input' | 'part2a' | 'part2b' | 'part3';
@@ -13,10 +14,6 @@ interface NavigationProps {
 const Navigation: FC<NavigationProps> = ({ activeSection, setActiveSection }) => {
   // Use a direct navigation function to ensure events are captured
   const navigateTo = (section: SectionType) => (e: React.MouseEvent) => {
-    // Prevent default and stop propagation to ensure the event is fully handled
-    e.preventDefault();
-    e.stopPropagation();
-    
     // Call the setActiveSection function passed from parent
     setActiveSection(section);
   };
@@ -28,30 +25,34 @@ const Navigation: FC<NavigationProps> = ({ activeSection, setActiveSection }) =>
           Carton Optimization System
         </div>
         <div className="flex flex-wrap space-x-2">
-          <button
+          <Link
+            to="/input"
             onClick={navigateTo('input')}
             className={`px-3 py-2 rounded-md ${activeSection === 'input' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
             Input
-          </button>
-          <button
+          </Link>
+          <Link
+            to="/part2a"
             onClick={navigateTo('part2a')}
             className={`px-3 py-2 rounded-md ${activeSection === 'part2a' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
             Analysis
-          </button>
-          <button
+          </Link>
+          <Link
+            to="/part2b"
             onClick={navigateTo('part2b')}
             className={`px-3 py-2 rounded-md ${activeSection === 'part2b' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
             Optimization
-          </button>
-          <button
+          </Link>
+          <Link
+            to="/part3"
             onClick={navigateTo('part3')}
             className={`px-3 py-2 rounded-md ${activeSection === 'part3' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
             Container
-          </button>
+          </Link>
         </div>
       </div>
     </div>
