@@ -4,6 +4,7 @@ import React, { createContext, useState, useContext } from 'react';
 // Define types for our context objects
 type CartonType = {
   id: number;
+  skuId: string; // Add skuId to the carton type
   length: number;
   width: number;
   height: number;
@@ -12,7 +13,14 @@ type CartonType = {
   isSelected: boolean;
 };
 
+// Define a type for SKUs
+type SKUType = {
+  id: string;
+  name: string;
+};
+
 type NewCandidateType = {
+  skuId?: string;  // Make skuId optional for backward compatibility
   length: number | string;
   width: number | string;
   height: number | string;
@@ -62,6 +70,9 @@ const CartonContext = createContext<{
   handleAddCandidate: (newCandidate: NewCandidateType, editMode: boolean, editCandidateId: number | null) => void;
   handleEditCandidate: (id: number) => NewCandidateType | null;
   handleDeleteCandidate: (id: number) => void;
+  // Add these for Part3 compatibility
+  skus: SKUType[];
+  getOptimalCartonForSku: (skuId: string, quantity: number) => CartonType | null;
 }>({
   candidateCartons: [],
   setCandidateCartons: () => {},
@@ -69,7 +80,10 @@ const CartonContext = createContext<{
   getSelectedCartonId: () => null,
   handleAddCandidate: () => {},
   handleEditCandidate: () => null,
-  handleDeleteCandidate: () => {}
+  handleDeleteCandidate: () => {},
+  // Add default implementations for new properties
+  skus: [],
+  getOptimalCartonForSku: () => null
 });
 
 // Define provider context with proper function signatures
@@ -108,10 +122,30 @@ const CostConfigContext = createContext<{
 });
 
 export const CartonProvider = ({ children }: { children: React.ReactNode }) => {
+  // Create SKUs based on carton SKU IDs
+  const defaultSkus: SKUType[] = [
+    { id: 'CS 007', name: 'CS 007' },
+    { id: 'CS 009', name: 'CS 009' },
+    { id: 'CS 011', name: 'CS 011' },
+    { id: 'CS 012', name: 'CS 012' },
+    { id: 'CS-CDS-001', name: 'CS-CDS-001' },
+    { id: 'CS-CDS-002', name: 'CS-CDS-002' },
+    { id: 'CS 008', name: 'CS 008' },
+    { id: 'CS 010', name: 'CS 010' }
+  ];
+
+  const [skus] = useState<SKUType[]>(defaultSkus);
+
   const [candidateCartons, setCandidateCartons] = useState<CartonType[]>([
-    { id: 1, length: 40, width: 30, height: 20, unitsPerCarton: 6, cartonsPerPallet: 20, isSelected: false },
-    { id: 2, length: 60, width: 40, height: 25, unitsPerCarton: 12, cartonsPerPallet: 12, isSelected: false },
-    { id: 3, length: 45, width: 35, height: 30, unitsPerCarton: 9, cartonsPerPallet: 16, isSelected: true }
+    // Default carton configurations based on real data
+    { id: 1, skuId: 'CS 007', length: 40, width: 44, height: 52.5, unitsPerCarton: 60, cartonsPerPallet: 18, isSelected: true },
+    { id: 2, skuId: 'CS 009', length: 38, width: 44, height: 52.5, unitsPerCarton: 36, cartonsPerPallet: 18, isSelected: false },
+    { id: 3, skuId: 'CS 011', length: 41, width: 26, height: 51.5, unitsPerCarton: 24, cartonsPerPallet: 24, isSelected: false },
+    { id: 4, skuId: 'CS 012', length: 44, width: 27, height: 51.5, unitsPerCarton: 16, cartonsPerPallet: 24, isSelected: false },
+    { id: 5, skuId: 'CS-CDS-001', length: 32, width: 60, height: 53, unitsPerCarton: 33, cartonsPerPallet: 18, isSelected: false },
+    { id: 6, skuId: 'CS-CDS-002', length: 32, width: 60, height: 50, unitsPerCarton: 14, cartonsPerPallet: 20, isSelected: false },
+    { id: 7, skuId: 'CS 008', length: 40, width: 28, height: 29.5, unitsPerCarton: 60, cartonsPerPallet: 45, isSelected: false },
+    { id: 8, skuId: 'CS 010', length: 41, width: 28, height: 39.5, unitsPerCarton: 52, cartonsPerPallet: 40, isSelected: false }
   ]);
 
   const [providerRates, setProviderRates] = useState<ProviderRates>({
@@ -184,6 +218,7 @@ export const CartonProvider = ({ children }: { children: React.ReactNode }) => {
           carton.id === editCandidateId ?
           {
             ...carton,
+            skuId: newCandidate.skuId || carton.skuId, // Keep existing skuId if not provided
             length: parseFloat(newCandidate.length as string),
             width: parseFloat(newCandidate.width as string),
             height: parseFloat(newCandidate.height as string),
@@ -199,6 +234,7 @@ export const CartonProvider = ({ children }: { children: React.ReactNode }) => {
         ...candidateCartons,
         {
           id: newId,
+          skuId: newCandidate.skuId || 'Unknown', // Default to 'Unknown' if not provided
           length: parseFloat(newCandidate.length as string),
           width: parseFloat(newCandidate.width as string),
           height: parseFloat(newCandidate.height as string),
@@ -215,6 +251,7 @@ export const CartonProvider = ({ children }: { children: React.ReactNode }) => {
     const candidateToEdit = candidateCartons.find(c => c.id === id);
     if (candidateToEdit) {
       return {
+        skuId: candidateToEdit.skuId,
         length: candidateToEdit.length,
         width: candidateToEdit.width,
         height: candidateToEdit.height,
@@ -240,6 +277,41 @@ export const CartonProvider = ({ children }: { children: React.ReactNode }) => {
         toggleCandidateSelection(newSelectedId);
       }
     }
+  };
+
+  // Get optimal carton for a SKU
+  const getOptimalCartonForSku = (skuId: string, quantity: number): CartonType | null => {
+    // Get all cartons for this SKU
+    const skuCartons = candidateCartons.filter(c => c.skuId === skuId);
+    if (skuCartons.length === 0) return null;
+    
+    // If only one carton, return it
+    if (skuCartons.length === 1) return skuCartons[0];
+    
+    // Simple cost calculation (could be more sophisticated)
+    const costEstimates = skuCartons.map(carton => {
+      const totalCartons = Math.ceil(quantity / carton.unitsPerCarton);
+      const totalPallets = Math.ceil(totalCartons / carton.cartonsPerPallet);
+      
+      // Simplified calculation
+      const estimatedCost = 
+        totalCartons * (costConfig.cartonHandlingCost + costConfig.cartonUnloadingCost) +
+        totalPallets * (costConfig.palletHandlingCost + costConfig.palletStorageCostPerWeek * costConfig.storageWeeks) +
+        totalPallets * costConfig.ltlCostPerPallet;
+      
+      return {
+        carton,
+        costPerUnit: estimatedCost / quantity
+      };
+    });
+    
+    // Find the lowest cost configuration
+    const optimal = costEstimates.reduce(
+      (min, current) => current.costPerUnit < min.costPerUnit ? current : min,
+      costEstimates[0]
+    );
+    
+    return optimal.carton;
   };
 
   // Handle cost provider change
@@ -285,7 +357,10 @@ export const CartonProvider = ({ children }: { children: React.ReactNode }) => {
       getSelectedCartonId,
       handleAddCandidate,
       handleEditCandidate,
-      handleDeleteCandidate
+      handleDeleteCandidate,
+      // Add these for Part3 compatibility
+      skus,
+      getOptimalCartonForSku
     }}>
       <ProviderContext.Provider value={{
         providerRates,

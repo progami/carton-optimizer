@@ -1,4 +1,5 @@
 // src/components/App.tsx
+// One small but critical change to fix the rendering issue
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Header from './Header';
@@ -37,15 +38,22 @@ const AppContent = () => {
     setActiveSection(section);
     // Navigate to the corresponding route
     if (section === 'input') {
-      navigate('/input');
+      navigate('/input', { replace: true }); // Use replace: true to force re-render
     } else if (section === 'part2a') {
-      navigate('/part2a');
+      navigate('/part2a', { replace: true }); // Use replace: true to force re-render
     } else if (section === 'part2b') {
-      navigate('/part2b');
+      navigate('/part2b', { replace: true }); // Use replace: true to force re-render
     } else if (section === 'part3') {
-      navigate('/part3');
+      navigate('/part3', { replace: true }); // Use replace: true to force re-render
     }
   };
+
+  // This forces the components to re-render when the path changes
+  const [, forceUpdate] = useState({});
+  useEffect(() => {
+    // Force re-render when location changes
+    forceUpdate({});
+  }, [location.pathname]);
 
   return (
     <div className="p-4 w-full bg-gray-50">
@@ -53,10 +61,10 @@ const AppContent = () => {
       <Navigation activeSection={activeSection} setActiveSection={handleSectionChange} />
       <Routes>
         <Route path="/" element={<Navigate to="/input" replace />} />
-        <Route path="/input" element={<CandidateConfigurations />} />
-        <Route path="/part2a" element={<CostAnalysis />} />
-        <Route path="/part2b" element={<CostOptimization />} />
-        <Route path="/part3" element={<ContainerOptimization />} />
+        <Route path="/input" element={<CandidateConfigurations key="input" />} />
+        <Route path="/part2a" element={<CostAnalysis key="part2a" />} />
+        <Route path="/part2b" element={<CostOptimization key="part2b" />} />
+        <Route path="/part3" element={<ContainerOptimization key="part3" />} />
       </Routes>
       <Footer activeSection={activeSection} setActiveSection={handleSectionChange} />
     </div>

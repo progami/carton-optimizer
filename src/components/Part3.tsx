@@ -1,10 +1,10 @@
+// src/components/Part3.tsx
 import { useState, useEffect } from 'react';
 import { useCarton, useCostConfig } from '../contexts/CartonContext';
 import { formatCurrency } from '../utils/formatters';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  Legend, ResponsiveContainer, PieChart, Pie, Cell, 
-  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
+  Legend, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
 
 // Define container cost constants
@@ -24,6 +24,9 @@ const CONTAINER_COSTS = {
 // Sum of all fixed costs per container
 const CONTAINER_FIXED_COSTS = Object.values(CONTAINER_COSTS).reduce((a, b) => a + b, 0);
 
+// Container capacity in cubic meters (40' High-Cube)
+const CONTAINER_CAPACITY = 76; // m³ (approximate volume for a 40' HC)
+
 // Type definitions
 interface ContainerSKU {
   id: string;
@@ -31,6 +34,8 @@ interface ContainerSKU {
   cartonId: number;
   quantity: number;
   unitsPerContainer: number;
+  volumePercentage: number; // New field for volume allocation
+  volumeEfficiency: number; // How efficiently the carton uses its allocated volume
 }
 
 interface SKUCostBreakdown {
@@ -45,71 +50,64 @@ interface SKUCostBreakdown {
   totalCost: number;
   costPerUnit: number;
   dimensions: string;
+  volumePercentage: number;
+  volumeEfficiency: number;
 }
 
 const Part3ContainerOptimization = () => {
-  const { candidateCartons } = useCarton();
+  const { candidateCartons, skus, getOptimalCartonForSku } = useCarton();
   const { costConfig } = useCostConfig();
 
   // State for SKUs in container
-  const [skus, setSkus] = useState<ContainerSKU[]>([
-    {
-      id: '1',
-      skuName: 'Product A',
-      cartonId: candidateCartons[0]?.id || 1,
-      quantity: 1000,
-      unitsPerContainer: 2500
+  const [containerSkus, setContainerSkus] = useState<ContainerSKU[]>([]);
+  
+  // Initialize state using SKUs from context
+  useEffect(() => {
+    if (skus.length > 0 && containerSkus.length === 0) {
+      const initialSkuState = skus.map((sku) => {
+        // Calculate even distribution of volume percentage
+        const volumePercentage = 100 / skus.length;
+        
+        // Get optimal carton for this SKU (if available)
+        const optimalCarton = getOptimalCartonForSku(sku.id, 1000);
+        const cartonId = optimalCarton?.id || candidateCartons[0]?.id || 1;
+        
+        return {
+          id: sku.id,
+          skuName: sku.name,
+          cartonId,
+          quantity: 1000,
+          unitsPerContainer: 2500,
+          volumePercentage,
+          volumeEfficiency: 0.85 // Default efficiency
+        };
+      });
+      
+      setContainerSkus(initialSkuState);
     }
-  ]);
+  }, [skus, containerSkus.length, getOptimalCartonForSku, candidateCartons]);
 
   // State for cost breakdown
   const [costBreakdown, setCostBreakdown] = useState<SKUCostBreakdown[]>([]);
   const [totalContainers, setTotalContainers] = useState<number>(0);
   const [totalCost, setTotalCost] = useState<number>(0);
   const [containerUtilization, setContainerUtilization] = useState<number>(0);
-
-  // Generate a unique ID for new SKUs
-  const generateUniqueId = () => {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2);
-  };
-
-  // Add a new SKU
-  const addSku = () => {
-    const newId = generateUniqueId();
-    setSkus([
-      ...skus,
-      {
-        id: newId,
-        skuName: `Product ${String.fromCharCode(65 + skus.length)}`, // A, B, C, etc.
-        cartonId: candidateCartons[0]?.id || 1,
-        quantity: 1000,
-        unitsPerContainer: 2500
-      }
-    ]);
-  };
-
-  // Remove an SKU
-  const removeSku = (id: string) => {
-    if (skus.length > 1) {
-      setSkus(skus.filter(sku => sku.id !== id));
-    }
-  };
-
-  // Update SKU details
-  const updateSku = (id: string, field: keyof ContainerSKU, value: any) => {
-    setSkus(skus.map(sku => 
-      sku.id === id ? { ...sku, [field]: value } : sku
-    ));
-  };
+  const [validVolumeAllocation, setValidVolumeAllocation] = useState<boolean>(true);
 
   // Calculate costs for each SKU and the total
   useEffect(() => {
     const calculateCosts = () => {
+      // First, validate that volume percentages sum to 100%
+      const totalVolumePercentage = containerSkus.reduce((sum, sku) => sum + sku.volumePercentage, 0);
+      setValidVolumeAllocation(Math.abs(totalVolumePercentage - 100) < 0.01);
+      
+      if (!validVolumeAllocation) return;
+      
       let totalContainersNeeded = 0;
       const skuBreakdowns: SKUCostBreakdown[] = [];
 
       // Calculate per SKU costs
-      skus.forEach(sku => {
+      containerSkus.forEach(sku => {
         const carton = candidateCartons.find(c => c.id === sku.cartonId);
         if (!carton) return;
 
@@ -133,12 +131,22 @@ const Part3ContainerOptimization = () => {
         const cartonCosts = cartonHandlingCost + cartonUnloadingCost;
         const palletCosts = palletHandlingCost + storageCost + transportCost;
         
-        // Calculate containers needed
-        const skuContainers = Math.ceil(sku.quantity / sku.unitsPerContainer);
-        totalContainersNeeded += skuContainers;
+        // Calculate volume allocation
+        const allocatedVolume = (CONTAINER_CAPACITY * sku.volumePercentage / 100);
+        const efficiencyFactor = sku.volumeEfficiency;
+        const usableVolume = allocatedVolume * efficiencyFactor;
         
-        // Calculate container costs for this SKU
-        const containerCosts = skuContainers * CONTAINER_FIXED_COSTS;
+        // Calculate carton volume
+        const cartonVolume = (carton.length * carton.width * carton.height) / 1000000; // cm³ to m³
+        const cartonsPerContainer = Math.floor(usableVolume / cartonVolume);
+        const unitsPerContainer = cartonsPerContainer * unitsPerCarton;
+        
+        // Calculate containers needed for this SKU
+        const skuContainers = Math.ceil(sku.quantity / unitsPerContainer);
+        totalContainersNeeded = Math.max(totalContainersNeeded, skuContainers);
+        
+        // Calculate container costs for this SKU (proportional to volume allocation)
+        const containerCosts = totalContainersNeeded * CONTAINER_FIXED_COSTS * (sku.volumePercentage / 100);
         
         // Total costs for this SKU
         const totalCost = cartonCosts + palletCosts + containerCosts;
@@ -154,23 +162,100 @@ const Part3ContainerOptimization = () => {
           palletCosts,
           totalCost,
           costPerUnit: totalCost / sku.quantity,
-          dimensions: `${carton.length}×${carton.width}×${carton.height} cm`
+          dimensions: `${carton.length}×${carton.width}×${carton.height} cm`,
+          volumePercentage: sku.volumePercentage,
+          volumeEfficiency: sku.volumeEfficiency
         });
       });
 
       // Calculate container utilization
-      const totalUnits = skus.reduce((sum, sku) => sum + sku.quantity, 0);
-      const totalCapacity = totalContainersNeeded * skus[0].unitsPerContainer; // Using first SKU's unitsPerContainer as reference
-      const utilization = (totalUnits / totalCapacity) * 100;
+      let actualVolumeUsed = 0;
+      skuBreakdowns.forEach(breakdown => {
+        const carton = candidateCartons.find(c => c.id === containerSkus.find(s => s.id === breakdown.skuId)?.cartonId);
+        if (!carton) return;
+        
+        const cartonVolume = (carton.length * carton.width * carton.height) / 1000000; // cm³ to m³
+        actualVolumeUsed += breakdown.totalCartons * cartonVolume;
+      });
+      
+      const totalContainerVolume = totalContainersNeeded * CONTAINER_CAPACITY;
+      const utilization = (actualVolumeUsed / totalContainerVolume) * 100;
 
       setTotalContainers(totalContainersNeeded);
       setCostBreakdown(skuBreakdowns);
       setTotalCost(skuBreakdowns.reduce((sum, sku) => sum + sku.totalCost, 0));
       setContainerUtilization(utilization);
+      
+      // Update the unitsPerContainer for each SKU based on calculations
+      setContainerSkus(prevSkus => 
+        prevSkus.map(sku => {
+          const carton = candidateCartons.find(c => c.id === sku.cartonId);
+          if (!carton) return sku;
+          
+          const allocatedVolume = (CONTAINER_CAPACITY * sku.volumePercentage / 100);
+          const efficiencyFactor = sku.volumeEfficiency;
+          const usableVolume = allocatedVolume * efficiencyFactor;
+          
+          const cartonVolume = (carton.length * carton.width * carton.height) / 1000000; // cm³ to m³
+          const cartonsPerContainer = Math.floor(usableVolume / cartonVolume);
+          const unitsPerContainer = cartonsPerContainer * carton.unitsPerCarton;
+          
+          return {
+            ...sku,
+            unitsPerContainer
+          };
+        })
+      );
     };
 
     calculateCosts();
-  }, [skus, candidateCartons, costConfig]);
+  }, [containerSkus, candidateCartons, costConfig, validVolumeAllocation]);
+
+  // Update a specific SKU's data
+  const updateSkuData = (id: string, field: keyof ContainerSKU, value: any) => {
+    setContainerSkus(prevSkus => 
+      prevSkus.map(sku => 
+        sku.id === id ? { ...sku, [field]: value } : sku
+      )
+    );
+  };
+
+  // Update a SKU's carton to the optimal one based on quantity
+  const setOptimalCarton = (skuId: string) => {
+    const sku = containerSkus.find(s => s.id === skuId);
+    if (!sku) return;
+    
+    const optimalCarton = getOptimalCartonForSku(skuId, sku.quantity);
+    if (optimalCarton) {
+      updateSkuData(skuId, 'cartonId', optimalCarton.id);
+    }
+  };
+
+  // Distribute remaining percentage to reach 100%
+  const distributeRemainingPercentage = () => {
+    const currentTotal = containerSkus.reduce((sum, sku) => sum + sku.volumePercentage, 0);
+    const difference = 100 - currentTotal;
+    
+    if (Math.abs(difference) < 0.01) return; // Already at 100%
+    
+    // Distribute evenly among all SKUs
+    const distributionPerSku = difference / containerSkus.length;
+    
+    setContainerSkus(prevSkus => 
+      prevSkus.map(sku => ({
+        ...sku,
+        volumePercentage: Math.max(0, Math.min(100, sku.volumePercentage + distributionPerSku))
+      }))
+    );
+  };
+
+  // Colors for charts
+  const colors = {
+    container: '#3b82f6',
+    carton: '#0891b2',
+    pallet: '#22c55e',
+    pieColors: ['#3b82f6', '#0891b2', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+  };
 
   // Prepare data for charts
   const prepareCostBreakdownData = () => {
@@ -185,28 +270,16 @@ const Part3ContainerOptimization = () => {
     ];
   };
 
-  // Prepare container cost breakdown
-  const prepareContainerCostDetails = () => {
-    return [
-      { name: 'Freight', value: CONTAINER_COSTS.freight * totalContainers },
-      { name: 'Terminal Handling', value: CONTAINER_COSTS.terminalHandling * totalContainers },
-      { name: 'Port Processing', value: CONTAINER_COSTS.portProcessing * totalContainers },
-      { name: 'Documentation', value: CONTAINER_COSTS.documentation * totalContainers },
-      { name: 'Inspection', value: CONTAINER_COSTS.inspection * totalContainers },
-      { name: 'Customs Clearance', value: CONTAINER_COSTS.customsClearance * totalContainers },
-      { name: 'Port Charges', value: CONTAINER_COSTS.portCharges * totalContainers },
-      { name: 'Deferment Fee', value: CONTAINER_COSTS.deferment * totalContainers },
-      { name: 'Haulage', value: CONTAINER_COSTS.haulage * totalContainers },
-      { name: 'Container Unloading', value: CONTAINER_COSTS.unloading * totalContainers }
-    ];
-  };
-
-  // Colors for charts
-  const colors = {
-    container: '#3b82f6',
-    carton: '#0891b2',
-    pallet: '#22c55e',
-    pieColors: ['#3b82f6', '#0891b2', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+  // Prepare per-SKU cost breakdown for visualization
+  const prepareSkuCostChart = () => {
+    return costBreakdown.map(sku => ({
+      name: sku.skuName,
+      cartonCosts: sku.cartonCosts,
+      palletCosts: sku.palletCosts,
+      containerCosts: sku.containerCosts,
+      totalCost: sku.totalCost,
+      costPerUnit: sku.costPerUnit
+    }));
   };
 
   return (
@@ -217,12 +290,19 @@ const Part3ContainerOptimization = () => {
       <div className="mb-6">
         <div className="flex justify-between items-center mb-3">
           <h3 className="font-semibold text-gray-700">SKU Configuration</h3>
-          <button
-            onClick={addSku}
-            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-all text-sm"
-          >
-            Add SKU
-          </button>
+          {!validVolumeAllocation && (
+            <div className="flex items-center">
+              <span className="text-amber-600 mr-2">
+                Volume allocation: {containerSkus.reduce((sum, sku) => sum + sku.volumePercentage, 0).toFixed(1)}%
+              </span>
+              <button
+                onClick={distributeRemainingPercentage}
+                className="px-3 py-1 bg-amber-500 text-white rounded hover:bg-amber-600 transition-all text-sm"
+              >
+                Adjust to 100%
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -232,57 +312,86 @@ const Part3ContainerOptimization = () => {
                 <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">SKU Name</th>
                 <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">Carton Configuration</th>
                 <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">Quantity</th>
-                <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">Units Per Container</th>
+                <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">Volume %</th>
+                <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">Efficiency %</th>
+                <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">Units/Container</th>
                 <th className="py-2 px-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {skus.map((sku) => (
+              {containerSkus.map((sku) => (
                 <tr key={sku.id}>
                   <td className="py-2 px-3 border">
                     <input
                       type="text"
                       className="w-full p-1 border rounded"
                       value={sku.skuName}
-                      onChange={(e) => updateSku(sku.id, 'skuName', e.target.value)}
+                      onChange={(e) => updateSkuData(sku.id, 'skuName', e.target.value)}
                     />
                   </td>
                   <td className="py-2 px-3 border">
-                    <select 
-                      className="w-full p-1 border rounded"
-                      value={sku.cartonId}
-                      onChange={(e) => updateSku(sku.id, 'cartonId', parseInt(e.target.value))}
-                    >
-                      {candidateCartons.map(carton => (
-                        <option key={carton.id} value={carton.id}>
-                          {carton.length}×{carton.width}×{carton.height} cm ({carton.unitsPerCarton} units/carton)
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center space-x-1">
+                      <select 
+                        className="w-full p-1 border rounded"
+                        value={sku.cartonId}
+                        onChange={(e) => updateSkuData(sku.id, 'cartonId', parseInt(e.target.value))}
+                      >
+                        {candidateCartons
+                          .filter(carton => carton.skuId === sku.id)
+                          .map(carton => (
+                            <option key={carton.id} value={carton.id}>
+                              {carton.length}×{carton.width}×{carton.height} cm ({carton.unitsPerCarton} units/carton)
+                            </option>
+                          ))}
+                      </select>
+                      <button
+                        onClick={() => setOptimalCarton(sku.id)}
+                        className="p-1 bg-blue-500 text-white rounded text-xs"
+                        title="Set to optimal configuration from Part 2"
+                      >
+                        Opt
+                      </button>
+                    </div>
                   </td>
                   <td className="py-2 px-3 border">
                     <input
                       type="number"
                       className="w-full p-1 border rounded"
                       value={sku.quantity}
-                      onChange={(e) => updateSku(sku.id, 'quantity', parseInt(e.target.value) || 0)}
+                      onChange={(e) => updateSkuData(sku.id, 'quantity', parseInt(e.target.value) || 0)}
+                    />
+                  </td>
+                  <td className="py-2 px-3 border">
+                    <input
+                      type="number"
+                      className={`w-full p-1 border rounded ${!validVolumeAllocation ? 'border-amber-500' : ''}`}
+                      value={sku.volumePercentage}
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      onChange={(e) => updateSkuData(sku.id, 'volumePercentage', parseFloat(e.target.value) || 0)}
                     />
                   </td>
                   <td className="py-2 px-3 border">
                     <input
                       type="number"
                       className="w-full p-1 border rounded"
-                      value={sku.unitsPerContainer}
-                      onChange={(e) => updateSku(sku.id, 'unitsPerContainer', parseInt(e.target.value) || 0)}
+                      value={sku.volumeEfficiency}
+                      min="0.1"
+                      max="1"
+                      step="0.01"
+                      onChange={(e) => updateSkuData(sku.id, 'volumeEfficiency', parseFloat(e.target.value) || 0.85)}
                     />
                   </td>
                   <td className="py-2 px-3 border text-center">
+                    {sku.unitsPerContainer}
+                  </td>
+                  <td className="py-2 px-3 border text-center">
                     <button
-                      onClick={() => removeSku(sku.id)}
-                      className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-all text-xs"
-                      disabled={skus.length <= 1}
+                      className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-all text-xs mr-1"
+                      onClick={() => setOptimalCarton(sku.id)}
                     >
-                      Remove
+                      Optimize
                     </button>
                   </td>
                 </tr>
@@ -345,10 +454,11 @@ const Part3ContainerOptimization = () => {
             <div className="text-center mt-2">
               <div className="text-sm text-gray-600">Total Containers: {totalContainers}</div>
               <div className="text-sm text-gray-600">
-                Total Units: {skus.reduce((sum, sku) => sum + sku.quantity, 0).toLocaleString()}
+                Total Units: {containerSkus.reduce((sum, sku) => sum + sku.quantity, 0).toLocaleString()}
               </div>
               <div className="text-sm text-gray-600">
-                Container Capacity: {(totalContainers * skus[0]?.unitsPerContainer || 0).toLocaleString()} units
+                Volume Allocation: {validVolumeAllocation ? '100%' : 
+                  `${containerSkus.reduce((sum, sku) => sum + sku.volumePercentage, 0).toFixed(1)}%`}
               </div>
             </div>
           </div>
@@ -381,7 +491,7 @@ const Part3ContainerOptimization = () => {
               </div>
               <div className="flex justify-between text-green-700 font-medium">
                 <span>Average Cost Per Unit</span>
-                <span>{formatCurrency(totalCost / skus.reduce((sum, sku) => sum + sku.quantity, 0))}</span>
+                <span>{formatCurrency(totalCost / containerSkus.reduce((sum, sku) => sum + sku.quantity, 0))}</span>
               </div>
             </div>
           </div>
@@ -406,7 +516,7 @@ const Part3ContainerOptimization = () => {
                       <Cell key={`cell-${index}`} fill={colors.pieColors[index % colors.pieColors.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value) => formatCurrency(value)} />
+                  <Tooltip formatter={(value) => formatCurrency(value as number)} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -424,7 +534,7 @@ const Part3ContainerOptimization = () => {
                 <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">Configuration</th>
                 <th className="py-2 px-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">Quantity</th>
                 <th className="py-2 px-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">Cartons</th>
-                <th className="py-2 px-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">Containers</th>
+                <th className="py-2 px-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">Volume %</th>
                 <th className="py-2 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border">Container Costs</th>
                 <th className="py-2 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border">Carton Costs</th>
                 <th className="py-2 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border">Pallet Costs</th>
@@ -439,7 +549,12 @@ const Part3ContainerOptimization = () => {
                   <td className="py-2 px-3 border">{skuCost.dimensions}</td>
                   <td className="py-2 px-3 text-center border">{skuCost.quantity.toLocaleString()}</td>
                   <td className="py-2 px-3 text-center border">{skuCost.totalCartons}</td>
-                  <td className="py-2 px-3 text-center border">{skuCost.totalContainers}</td>
+                  <td className="py-2 px-3 text-center border">
+                    {skuCost.volumePercentage.toFixed(1)}%
+                    <div className="text-xs text-gray-500">
+                      ({(skuCost.volumeEfficiency * 100).toFixed(0)}% eff.)
+                    </div>
+                  </td>
                   <td className="py-2 px-3 text-right border">{formatCurrency(skuCost.containerCosts)}</td>
                   <td className="py-2 px-3 text-right border">{formatCurrency(skuCost.cartonCosts)}</td>
                   <td className="py-2 px-3 text-right border">{formatCurrency(skuCost.palletCosts)}</td>
@@ -452,29 +567,47 @@ const Part3ContainerOptimization = () => {
         </div>
       </div>
 
-      {/* Detailed Container Cost Analysis */}
+      {/* SKU Cost Visualization */}
+      <div className="mb-6">
+        <h3 className="font-semibold text-gray-700 mb-3">SKU Cost Comparison</h3>
+        <div className="h-80 bg-gray-50 p-4 rounded-lg">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={prepareSkuCostChart()}
+              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
+              <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
+              <Tooltip formatter={(value) => formatCurrency(value as number)} />
+              <Legend />
+              <Bar yAxisId="left" dataKey="totalCost" name="Total Cost" fill="#8884d8" />
+              <Bar yAxisId="right" dataKey="costPerUnit" name="Cost Per Unit" fill="#82ca9d" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Stacked Cost Breakdown */}
       <div>
-        <h3 className="font-semibold text-gray-700 mb-3">Detailed Container Cost Analysis</h3>
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Container Cost Components</h4>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={prepareContainerCostDetails()}
-                layout="vertical"
-                margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tickFormatter={(value) => formatCurrency(value)} />
-                <YAxis dataKey="name" type="category" />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Bar dataKey="value" fill={colors.container} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="text-center mt-2 text-sm text-gray-600">
-            Total Container Cost: {formatCurrency(CONTAINER_FIXED_COSTS * totalContainers)}
-          </div>
+        <h3 className="font-semibold text-gray-700 mb-3">Detailed Cost Components by SKU</h3>
+        <div className="h-80 bg-gray-50 p-4 rounded-lg">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={prepareSkuCostChart()}
+              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis tickFormatter={(value) => formatCurrency(value)} />
+              <Tooltip formatter={(value) => formatCurrency(value as number)} />
+              <Legend />
+              <Bar dataKey="containerCosts" name="Container Costs" stackId="a" fill={colors.container} />
+              <Bar dataKey="cartonCosts" name="Carton Costs" stackId="a" fill={colors.carton} />
+              <Bar dataKey="palletCosts" name="Pallet Costs" stackId="a" fill={colors.pallet} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>

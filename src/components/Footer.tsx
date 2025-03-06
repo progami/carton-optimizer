@@ -11,33 +11,43 @@ interface FooterProps {
 }
 
 const Footer: FC<FooterProps> = ({ activeSection, setActiveSection }) => {
+  // Use a direct navigation function to ensure events are captured
+  const navigateTo = (section: SectionType) => (e: React.MouseEvent) => {
+    // Prevent default and stop propagation to ensure the event is fully handled
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Call the setActiveSection function passed from parent
+    setActiveSection(section);
+  };
+
   return (
-    <div className="bg-white p-4 rounded-lg shadow-lg">
-      <div className="flex justify-between items-center">
-        <div className="text-sm text-gray-500">
+    <div className="bg-white p-4 rounded-lg shadow-lg mt-6 relative z-20">
+      <div className="flex flex-wrap justify-between items-center">
+        <div className="text-sm text-gray-500 mb-3 md:mb-0">
           Carton Optimization System - Three-Part Supply Chain Analysis
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap space-x-2">
           <button
-            onClick={() => setActiveSection('input')}
+            onClick={navigateTo('input')}
             className={`px-3 py-1 rounded ${activeSection === 'input' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
           >
             Part 1: Input
           </button>
           <button
-            onClick={() => setActiveSection('part2a')}
+            onClick={navigateTo('part2a')}
             className={`px-3 py-1 rounded ${activeSection === 'part2a' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:bg-gray-100'}`}
           >
             Part 2A: Analysis
           </button>
           <button
-            onClick={() => setActiveSection('part2b')}
+            onClick={navigateTo('part2b')}
             className={`px-3 py-1 rounded ${activeSection === 'part2b' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:bg-gray-100'}`}
           >
             Part 2B: Optimization
           </button>
           <button
-            onClick={() => setActiveSection('part3')}
+            onClick={navigateTo('part3')}
             className={`px-3 py-1 rounded ${activeSection === 'part3' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}
           >
             Part 3: Container
