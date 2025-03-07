@@ -368,3 +368,81 @@ export const generateComparativeCurves = (
 
   return data;
 };
+
+// =====================================
+// Container-related utility functions
+// =====================================
+
+// Container types and their dimensions in cm
+export const CONTAINER_TYPES = {
+  '40HC': { name: "40' High-Cube", length: 1203, width: 235, height: 269, volume: 76 }, // volume in m³
+  '40STD': { name: "40' Standard", length: 1203, width: 235, height: 239, volume: 67 }, // volume in m³
+  '20STD': { name: "20' Standard", length: 590, width: 235, height: 239, volume: 33 }  // volume in m³
+};
+
+// Define container cost structure with default values
+export const DEFAULT_CONTAINER_COSTS = {
+  freight: 4000,
+  terminalHandling: 450,
+  portProcessing: 150,
+  haulage: 835,
+  unloading: 500
+};
+
+// Calculate total container cost
+export const calculateTotalContainerCost = (
+  containerCosts: Record<string, number>, 
+  totalContainers: number
+): number => {
+  const perContainerCost = Object.values(containerCosts).reduce(
+    (sum: number, cost: number) => sum + cost, 
+    0
+  );
+  return perContainerCost * totalContainers;
+};
+
+// Normalize volume percentages to ensure they sum to 100%
+export const normalizeVolumePercentages = <T extends { volumePercentage: number }>(
+  items: T[]
+): T[] => {
+  if (items.length === 0) return [];
+  
+  // Create a deep copy to avoid mutating the original objects
+  const result = items.map(item => ({...item}));
+  
+  // If all percentages are 0 or NaN, distribute evenly
+  const allZero = result.every(item => !item.volumePercentage || isNaN(item.volumePercentage));
+  
+  if (allZero) {
+    const equalPercentage = parseFloat((100 / result.length).toFixed(1));
+    return result.map((item, index) => ({
+      ...item,
+      volumePercentage: index === 0 
+        ? parseFloat((equalPercentage + (100 - (equalPercentage * result.length))).toFixed(1)) 
+        : equalPercentage
+    }));
+  }
+  
+  // Otherwise adjust proportionally
+  const total = result.reduce((sum: number, item: T) => sum + (item.volumePercentage || 0), 0);
+  
+  if (Math.abs(total - 100) < 0.1) return result; // Already close to 100%
+  
+  // Proportionally adjust all items
+  const factor = 100 / total;
+  const adjusted = result.map(item => ({
+    ...item,
+    volumePercentage: parseFloat((item.volumePercentage * factor).toFixed(1))
+  }));
+  
+  // Fix any remaining rounding errors by adjusting the first item
+  const newTotal = adjusted.reduce((sum: number, item: T) => sum + item.volumePercentage, 0);
+  if (Math.abs(newTotal - 100) > 0.01 && adjusted.length > 0) {
+    adjusted[0] = {
+      ...adjusted[0],
+      volumePercentage: parseFloat((adjusted[0].volumePercentage + (100 - newTotal)).toFixed(1))
+    };
+  }
+  
+  return adjusted;
+};

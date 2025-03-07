@@ -1,275 +1,29 @@
 // src/components/Part3.tsx
-import { useState, useEffect, useCallback } from 'react';
-import { useCarton, useCostConfig } from '../contexts/CartonContext';
+import { useCarton } from '../contexts/CartonContext';
 import { formatCurrency } from '../utils/formatters';
-import { calculateCostComponents } from '../utils/calculators';
-
-// Container types and their dimensions in cm
-const CONTAINER_TYPES = {
-  '40HC': { name: "40' High-Cube", length: 1203, width: 235, height: 269, volume: 76 }, // volume in m³
-  '40STD': { name: "40' Standard", length: 1203, width: 235, height: 239, volume: 67 }, // volume in m³
-  '20STD': { name: "20' Standard", length: 590, width: 235, height: 239, volume: 33 }  // volume in m³
-};
-
-// Define container cost structure with default values
-const DEFAULT_CONTAINER_COSTS = {
-  freight: 4000,
-  terminalHandling: 450,
-  portProcessing: 150,
-  haulage: 835,
-  unloading: 500
-};
-
-// Type definitions
-interface ContainerSKU {
-  id: string;
-  skuName: string;
-  cartonId: number;
-  quantity: number;
-  volumePercentage: number;
-}
-
-interface TotalCostBreakdown {
-  skuId: string;
-  skuName: string;
-  cartonId: number;
-  dimensions: string;
-  quantity: number;
-  
-  // Container costs
-  containerCosts: number;
-  containerCostPerUnit: number;
-  
-  // Supply chain costs from Part 2A
-  cartonCosts: number;
-  palletCosts: number;
-  supplyChainCost: number;
-  supplyChainCostPerUnit: number;
-  
-  // Total costs
-  totalCost: number;
-  totalCostPerUnit: number;
-  
-  volumePercentage: number;
-  unitsPerCarton: number;
-  cartonsPerPallet: number;
-}
+import { CONTAINER_TYPES } from '../utils/calculators';
+import useContainerCalculation, { CostBreakdown, ContainerSKU } from '../hooks/useContainerCalculation';
 
 const Part3ContainerOptimization = () => {
-  // Unmount detection for cleanup
-  const [unmounted, setUnmounted] = useState(false);
-  useEffect(() => {
-    return () => {
-      setUnmounted(true);
-    };
-  }, []);
-
-  const { candidateCartons, skus, getOptimalCartonForSku } = useCarton();
-  const { costConfig } = useCostConfig();
-
-  // Container configuration
-  const [containerType, setContainerType] = useState<keyof typeof CONTAINER_TYPES>('40HC');
-  const [totalContainers, setTotalContainers] = useState<number>(2);
-  const [containerCosts, setContainerCosts] = useState(DEFAULT_CONTAINER_COSTS);
+  const { candidateCartons } = useCarton();
   
-  // State for SKUs in container
-  const [containerSkus, setContainerSkus] = useState<ContainerSKU[]>([]);
-  
-  // State for cost breakdown
-  const [costBreakdown, setCostBreakdown] = useState<TotalCostBreakdown[]>([]);
-  const [totalContainerCost, setTotalContainerCost] = useState<number>(0);
-  const [totalSupplyChainCost, setTotalSupplyChainCost] = useState<number>(0);
-  const [grandTotalCost, setGrandTotalCost] = useState<number>(0);
-  
-  // Initialize state with SKUs from context
-  useEffect(() => {
-    if (unmounted) return;
-    
-    if (skus.length > 0 && containerSkus.length === 0) {
-      const initialSkuState = skus.map((sku) => {
-        // Get optimal carton for this SKU
-        const optimalCarton = getOptimalCartonForSku(sku.id, 1000);
-        const cartonId = optimalCarton?.id || candidateCartons.find(c => c.skuId === sku.id)?.id || 0;
-        
-        return {
-          id: sku.id,
-          skuName: sku.name,
-          cartonId,
-          quantity: 1000,
-          volumePercentage: 100 / skus.length // Distribute evenly initially
-        };
-      });
-      
-      setContainerSkus(initialSkuState);
-    }
-  }, [skus, containerSkus.length, getOptimalCartonForSku, candidateCartons, unmounted]);
-
-  // Update a specific SKU's data
-  const updateSkuData = useCallback((id: string, field: keyof ContainerSKU, value: any) => {
-    if (unmounted) return;
-    
-    setContainerSkus(prevSkus => 
-      prevSkus.map(sku => 
-        sku.id === id ? { ...sku, [field]: value } : sku
-      )
-    );
-  }, [unmounted]);
-
-  // Recalculate volume percentages to ensure they sum to 100%
-  const recalculateVolumePercentages = useCallback(() => {
-    if (unmounted) return;
-    
-    const total = containerSkus.reduce((sum, sku) => sum + sku.volumePercentage, 0);
-    
-    if (Math.abs(total - 100) < 0.1) return; // Already close to 100%
-    
-    setContainerSkus(prevSkus => {
-      const adjustedSkus = [...prevSkus];
-      
-      // Proportionally adjust all SKUs
-      const factor = 100 / total;
-      adjustedSkus.forEach(sku => {
-        sku.volumePercentage = Math.round(sku.volumePercentage * factor * 10) / 10;
-      });
-      
-      // Fix any remaining rounding errors by adjusting the first SKU
-      const newTotal = adjustedSkus.reduce((sum, sku) => sum + sku.volumePercentage, 0);
-      if (newTotal !== 100 && adjustedSkus.length > 0) {
-        adjustedSkus[0].volumePercentage += (100 - newTotal);
-      }
-      
-      return adjustedSkus;
-    });
-  }, [containerSkus, unmounted]);
-
-  // Set optimal cartons for all SKUs
-  const setOptimalCartonsForAll = useCallback(() => {
-    if (unmounted) return;
-    
-    setContainerSkus(prevSkus => 
-      prevSkus.map(sku => {
-        const optimalCarton = getOptimalCartonForSku(sku.id, sku.quantity);
-        return optimalCarton 
-          ? { ...sku, cartonId: optimalCarton.id }
-          : sku;
-      })
-    );
-  }, [getOptimalCartonForSku, unmounted]);
-
-  // Calculate total container cost
-  const calculateTotalContainerCost = useCallback(() => {
-    return Object.values(containerCosts).reduce((sum, cost) => sum + cost, 0) * totalContainers;
-  }, [containerCosts, totalContainers]);
-
-  // Calculate costs for each SKU including supply chain costs from Part 2A
-  useEffect(() => {
-    if (unmounted) return;
-    
-    const total = containerSkus.reduce((sum, sku) => sum + sku.volumePercentage, 0);
-    if (Math.abs(total - 100) > 5) {
-      // If percentages are way off, recalculate them
-      recalculateVolumePercentages();
-      return;
-    }
-    
-    const totalCost = calculateTotalContainerCost();
-    setTotalContainerCost(totalCost);
-    
-    let totalSupplyChain = 0;
-    let grandTotal = 0;
-    
-    // Calculate cost breakdown per SKU
-    const breakdown = containerSkus.map(sku => {
-      // Get carton details
-      const carton = candidateCartons.find(c => c.id === sku.cartonId);
-      if (!carton) {
-        // Return placeholder if carton not found
-        return {
-          skuId: sku.id,
-          skuName: sku.skuName,
-          cartonId: 0,
-          dimensions: 'No carton selected',
-          quantity: sku.quantity,
-          containerCosts: 0,
-          containerCostPerUnit: 0,
-          cartonCosts: 0,
-          palletCosts: 0,
-          supplyChainCost: 0,
-          supplyChainCostPerUnit: 0,
-          totalCost: 0,
-          totalCostPerUnit: 0,
-          volumePercentage: sku.volumePercentage,
-          unitsPerCarton: 0,
-          cartonsPerPallet: 0
-        };
-      }
-      
-      const dimensions = `${carton.length}×${carton.width}×${carton.height} cm`;
-      
-      // Container cost attribution based on volume percentage
-      const skuContainerCost = totalCost * (sku.volumePercentage / 100);
-      const containerCostPerUnit = sku.quantity > 0 ? skuContainerCost / sku.quantity : 0;
-      
-      // Calculate supply chain costs from Part 2A
-      const costResults = calculateCostComponents(
-        sku.quantity,
-        carton.id,
-        carton.id,
-        candidateCartons,
-        costConfig
-      );
-      
-      let cartonCosts = 0;
-      let palletCosts = 0;
-      let supplyChainCost = 0;
-      let supplyChainCostPerUnit = 0;
-      
-      if (costResults) {
-        // Extract costs from the results
-        cartonCosts = costResults.cartonCosts || 0;
-        
-        // Combine all pallet-related costs
-        palletCosts = (costResults.palletHandlingCosts || 0) + 
-                      (costResults.storageCosts || 0) + 
-                      (costResults.transportCosts || 0);
-        
-        supplyChainCost = cartonCosts + palletCosts;
-        supplyChainCostPerUnit = costResults.costPerUnit || 0;
-      }
-      
-      // Total costs (container + supply chain)
-      const totalSkuCost = skuContainerCost + supplyChainCost;
-      const totalCostPerUnit = sku.quantity > 0 ? totalSkuCost / sku.quantity : 0;
-      
-      // Add to running totals
-      totalSupplyChain += supplyChainCost;
-      grandTotal += totalSkuCost;
-      
-      return {
-        skuId: sku.id,
-        skuName: sku.skuName,
-        cartonId: carton.id,
-        dimensions,
-        quantity: sku.quantity,
-        containerCosts: skuContainerCost,
-        containerCostPerUnit,
-        cartonCosts,
-        palletCosts,
-        supplyChainCost,
-        supplyChainCostPerUnit,
-        totalCost: totalSkuCost,
-        totalCostPerUnit,
-        volumePercentage: sku.volumePercentage,
-        unitsPerCarton: carton.unitsPerCarton,
-        cartonsPerPallet: carton.cartonsPerPallet
-      };
-    });
-    
-    setCostBreakdown(breakdown);
-    setTotalSupplyChainCost(totalSupplyChain);
-    setGrandTotalCost(grandTotal);
-    
-  }, [containerSkus, calculateTotalContainerCost, recalculateVolumePercentages, candidateCartons, costConfig, unmounted]);
+  // Use our custom hook for all container calculations
+  const {
+    containerType,
+    setContainerType,
+    totalContainers,
+    setTotalContainers,
+    containerCosts,
+    setContainerCosts,
+    containerSkus,
+    updateSkuData,
+    recalculateVolumePercentages,
+    setOptimalCartonsForAll,
+    costBreakdown,
+    totalContainerCost,
+    totalSupplyChainCost,
+    grandTotalCost
+  } = useContainerCalculation();
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-lg mb-6">
@@ -330,10 +84,7 @@ const Part3ContainerOptimization = () => {
                   step="1"
                   value={containerCosts.freight}
                   className="w-full p-2 border rounded"
-                  onChange={(e) => {
-                    if (unmounted) return;
-                    setContainerCosts({...containerCosts, freight: parseFloat(e.target.value) || 0});
-                  }}
+                  onChange={(e) => setContainerCosts({...containerCosts, freight: parseFloat(e.target.value) || 0})}
                 />
               </div>
               <div>
@@ -343,10 +94,7 @@ const Part3ContainerOptimization = () => {
                   step="1"
                   value={containerCosts.terminalHandling}
                   className="w-full p-2 border rounded"
-                  onChange={(e) => {
-                    if (unmounted) return;
-                    setContainerCosts({...containerCosts, terminalHandling: parseFloat(e.target.value) || 0});
-                  }}
+                  onChange={(e) => setContainerCosts({...containerCosts, terminalHandling: parseFloat(e.target.value) || 0})}
                 />
               </div>
               <div>
@@ -356,10 +104,7 @@ const Part3ContainerOptimization = () => {
                   step="1"
                   value={containerCosts.portProcessing}
                   className="w-full p-2 border rounded"
-                  onChange={(e) => {
-                    if (unmounted) return;
-                    setContainerCosts({...containerCosts, portProcessing: parseFloat(e.target.value) || 0});
-                  }}
+                  onChange={(e) => setContainerCosts({...containerCosts, portProcessing: parseFloat(e.target.value) || 0})}
                 />
               </div>
               <div>
@@ -369,10 +114,7 @@ const Part3ContainerOptimization = () => {
                   step="1"
                   value={containerCosts.haulage}
                   className="w-full p-2 border rounded"
-                  onChange={(e) => {
-                    if (unmounted) return;
-                    setContainerCosts({...containerCosts, haulage: parseFloat(e.target.value) || 0});
-                  }}
+                  onChange={(e) => setContainerCosts({...containerCosts, haulage: parseFloat(e.target.value) || 0})}
                 />
               </div>
               <div>
@@ -382,16 +124,13 @@ const Part3ContainerOptimization = () => {
                   step="1"
                   value={containerCosts.unloading}
                   className="w-full p-2 border rounded"
-                  onChange={(e) => {
-                    if (unmounted) return;
-                    setContainerCosts({...containerCosts, unloading: parseFloat(e.target.value) || 0});
-                  }}
+                  onChange={(e) => setContainerCosts({...containerCosts, unloading: parseFloat(e.target.value) || 0})}
                 />
               </div>
             </div>
             <div className="mt-3 pt-2 border-t flex justify-between font-medium">
               <span>Total Cost Per Container:</span>
-              <span>{formatCurrency(Object.values(containerCosts).reduce((sum, cost) => sum + cost, 0))}</span>
+              <span>{formatCurrency(Object.values(containerCosts).reduce((sum: number, cost: number) => sum + cost, 0))}</span>
             </div>
             <div className="mt-1 flex justify-between text-sm">
               <span>Total Container Cost ({totalContainers} containers):</span>
@@ -441,7 +180,7 @@ const Part3ContainerOptimization = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {containerSkus.map((sku) => {
+              {containerSkus.map((sku: ContainerSKU) => {
                 const skuCartons = candidateCartons.filter(c => c.skuId === sku.id);
                 return (
                   <tr key={sku.id}>
@@ -472,6 +211,7 @@ const Part3ContainerOptimization = () => {
                         type="number"
                         className="w-full p-1 border rounded"
                         value={sku.quantity}
+                        min="1"
                         onChange={(e) => updateSkuData(sku.id, 'quantity', parseInt(e.target.value) || 0)}
                       />
                     </td>
@@ -479,7 +219,7 @@ const Part3ContainerOptimization = () => {
                       <input
                         type="number"
                         className="w-full p-1 border rounded"
-                        value={sku.volumePercentage}
+                        value={sku.volumePercentage || 0}
                         min="0"
                         max="100"
                         step="0.1"
@@ -497,7 +237,7 @@ const Part3ContainerOptimization = () => {
               <tr>
                 <td className="py-2 px-3 font-medium border" colSpan={3}>Total Volume</td>
                 <td className="py-2 px-3 text-center border font-medium">
-                  {containerSkus.reduce((sum, sku) => sum + sku.volumePercentage, 0).toFixed(1)}%
+                  {containerSkus.reduce((sum: number, sku: ContainerSKU) => sum + (sku.volumePercentage || 0), 0).toFixed(1)}%
                 </td>
               </tr>
             </tfoot>
@@ -544,7 +284,7 @@ const Part3ContainerOptimization = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {costBreakdown.map((sku) => (
+              {costBreakdown.map((sku: CostBreakdown) => (
                 <tr key={sku.skuId}>
                   <td className="py-2 px-3 border">{sku.skuName}</td>
                   <td className="py-2 px-3 border">{sku.dimensions}</td>
@@ -589,7 +329,7 @@ const Part3ContainerOptimization = () => {
         <h3 className="font-semibold text-gray-700 mb-3">Detailed Cost Breakdown Per SKU</h3>
         
         <div className="space-y-4">
-          {costBreakdown.map((sku) => (
+          {costBreakdown.map((sku: CostBreakdown) => (
             <div key={sku.skuId} className="bg-gray-50 p-4 rounded-lg">
               <div className="flex justify-between items-center mb-2">
                 <h4 className="font-medium text-gray-700">{sku.skuName} ({sku.dimensions})</h4>
@@ -702,11 +442,11 @@ const Part3ContainerOptimization = () => {
               </li>
               <li className="flex justify-between items-center">
                 <span className="text-green-700">Carton Handling Costs:</span>
-                <span className="font-medium">{formatCurrency(costBreakdown.reduce((sum, sku) => sum + sku.cartonCosts, 0))}</span>
+                <span className="font-medium">{formatCurrency(costBreakdown.reduce((sum: number, sku: CostBreakdown) => sum + sku.cartonCosts, 0))}</span>
               </li>
               <li className="flex justify-between items-center">
                 <span className="text-emerald-700">Pallet & Storage Costs:</span>
-                <span className="font-medium">{formatCurrency(costBreakdown.reduce((sum, sku) => sum + sku.palletCosts, 0))}</span>
+                <span className="font-medium">{formatCurrency(costBreakdown.reduce((sum: number, sku: CostBreakdown) => sum + sku.palletCosts, 0))}</span>
               </li>
               <li className="flex justify-between items-center pt-2 border-t border-purple-200">
                 <span className="font-medium text-purple-800">Grand Total:</span>
@@ -720,7 +460,7 @@ const Part3ContainerOptimization = () => {
             <ul className="space-y-2">
               <li className="flex justify-between items-center">
                 <span>Total Units:</span>
-                <span className="font-medium">{costBreakdown.reduce((sum, sku) => sum + sku.quantity, 0).toLocaleString()}</span>
+                <span className="font-medium">{costBreakdown.reduce((sum: number, sku: CostBreakdown) => sum + sku.quantity, 0).toLocaleString()}</span>
               </li>
               <li className="flex justify-between items-center">
                 <span>Total SKUs:</span>
@@ -733,7 +473,7 @@ const Part3ContainerOptimization = () => {
               <li className="flex justify-between items-center pt-2 border-t border-purple-200">
                 <span className="font-medium text-purple-800">Average Cost Per Unit:</span>
                 <span className="font-bold text-purple-800">
-                  {formatCurrency(grandTotalCost / costBreakdown.reduce((sum, sku) => sum + sku.quantity, 0))}
+                  {formatCurrency(grandTotalCost / Math.max(1, costBreakdown.reduce((sum: number, sku: CostBreakdown) => sum + sku.quantity, 0)))}
                 </span>
               </li>
             </ul>
