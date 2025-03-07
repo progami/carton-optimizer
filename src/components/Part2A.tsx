@@ -1,7 +1,20 @@
+// src/components/Part2A.tsx
 import { useState, useEffect } from 'react';
 import { useCarton, useCostConfig, useProvider } from '../contexts/CartonContext';
 import { useCostCalculation } from '../hooks/useCostCalculation';
 import { formatCurrency } from '../utils/formatters';
+
+// Define the CartonType for easier typing
+type CartonType = {
+  id: number;
+  skuId: string;
+  length: number;
+  width: number;
+  height: number;
+  unitsPerCarton: number;
+  cartonsPerPallet: number;
+  isSelected: boolean;
+};
 
 const CostAnalysis = () => {
   const { candidateCartons, getSelectedCartonId } = useCarton();
@@ -13,14 +26,61 @@ const CostAnalysis = () => {
   const [showCostFunction, setShowCostFunction] = useState(false);
   const [optimized, setOptimized] = useState(false);
   const [showAbsoluteValues, setShowAbsoluteValues] = useState(false);
+  
+  // Add state for SKU selection
+  const [activeSku, setActiveSku] = useState<string>('');
+  const [availableSkus, setAvailableSkus] = useState<string[]>([]);
+  const [skuCartons, setSkuCartons] = useState<CartonType[]>([]);
 
   // Set the initial selected carton ID based on what's selected in Part 1
   useEffect(() => {
     const selected = getSelectedCartonId();
     if (selected) {
       setSelectedCartonId(selected);
+      // Find the SKU for this carton
+      const carton = candidateCartons.find(c => c.id === selected);
+      if (carton) {
+        setActiveSku(carton.skuId);
+        setSkuCartons(candidateCartons.filter(c => c.skuId === carton.skuId));
+      }
     }
-  }, [getSelectedCartonId, setSelectedCartonId]);
+  }, [getSelectedCartonId, setSelectedCartonId, candidateCartons]);
+
+  // Populate available SKUs and initialize
+  useEffect(() => {
+    const skus = [...new Set(candidateCartons.map(c => c.skuId))];
+    setAvailableSkus(skus);
+    
+    if (skus.length > 0 && !activeSku) {
+      setActiveSku(skus[0]);
+      
+      // Initialize with cartons for first SKU
+      const firstSkuCartons = candidateCartons.filter(c => c.skuId === skus[0]);
+      setSkuCartons(firstSkuCartons);
+      
+      // Set selected carton to first one in this SKU group
+      if (firstSkuCartons.length > 0) {
+        setSelectedCartonId(firstSkuCartons[0].id);
+      }
+    }
+  }, [candidateCartons, activeSku, setSelectedCartonId]);
+
+  // Handle SKU selection changes - automatically analyze the selected SKU
+  const handleSkuChange = (newSkuId: string) => {
+    setActiveSku(newSkuId);
+    
+    // Filter cartons for this SKU
+    const filteredCartons = candidateCartons.filter(c => c.skuId === newSkuId);
+    setSkuCartons(filteredCartons);
+    
+    // Set selected carton to first one in this group
+    if (filteredCartons.length > 0) {
+      setSelectedCartonId(filteredCartons[0].id);
+    }
+    
+    // No need for an explicit analyze button - the analysis happens automatically
+    // when the selectedCartonId changes due to the effects in useCostCalculation
+  };
 
   // Set transportMode to LTL if set to auto
   useEffect(() => {
@@ -31,6 +91,7 @@ const CostAnalysis = () => {
 
   // Function to optimize quantity to fully utilize pallets
   const optimizeQuantity = () => {
+    // Get the current selected carton from the selected carton ID, not from all cartons
     const selectedCarton = candidateCartons.find(c => c.id === selectedCartonId);
     if (!selectedCarton) return;
 
@@ -209,9 +270,9 @@ const CostAnalysis = () => {
                   value={selectedCartonId}
                   onChange={(e) => setSelectedCartonId(parseInt(e.target.value))}
                 >
-                  {candidateCartons.map(carton => (
+                  {skuCartons.map(carton => (
                     <option key={carton.id} value={carton.id}>
-                      {carton.length}×{carton.width}×{carton.height} cm
+                      {carton.length}×{carton.width}×{carton.height} cm ({carton.unitsPerCarton} units)
                     </option>
                   ))}
                 </select>
@@ -235,47 +296,66 @@ const CostAnalysis = () => {
             </div>
           </div>
           
-          {/* Cost Parameters */}
+          {/* SKU Selection */}
           <div className="bg-gray-50 p-3 rounded-lg shadow-sm">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">SKU Selection</h3>
+            <div className="grid grid-cols-1 gap-3 mb-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Select SKU</label>
+                <select
+                  className="w-full p-2 border rounded"
+                  value={activeSku}
+                  onChange={(e) => handleSkuChange(e.target.value)}
+                >
+                  {availableSkus.map(sku => (
+                    <option key={sku} value={sku}>{sku}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">3PL Provider</label>
+              <div className="flex space-x-1">
+                <button
+                  onClick={() => handleProviderChange('fmc')}
+                  className={`flex-1 py-1 px-2 rounded text-sm ${
+                    costConfig.provider === 'fmc'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white border hover:bg-gray-50'
+                  }`}
+                >
+                  FMC
+                </button>
+                <button
+                  onClick={() => handleProviderChange('vglobal')}
+                  className={`flex-1 py-1 px-2 rounded text-sm ${
+                    costConfig.provider === 'vglobal'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white border hover:bg-gray-50'
+                  }`}
+                >
+                  Vglobal
+                </button>
+                <button
+                  onClick={() => handleProviderChange('4as')}
+                  className={`flex-1 py-1 px-2 rounded text-sm ${
+                    costConfig.provider === '4as'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white border hover:bg-gray-50'
+                  }`}
+                >
+                  4as
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Cost Parameters */}
+          <div className="bg-gray-50 p-3 rounded-lg shadow-sm md:col-span-2">
             <h3 className="text-sm font-medium text-gray-700 mb-2">Cost Parameters</h3>
             
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">3PL Provider</label>
-                <div className="flex space-x-1">
-                  <button
-                    onClick={() => handleProviderChange('fmc')}
-                    className={`flex-1 py-1 px-2 rounded text-sm ${
-                      costConfig.provider === 'fmc'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-white border hover:bg-gray-50'
-                    }`}
-                  >
-                    FMC
-                  </button>
-                  <button
-                    onClick={() => handleProviderChange('vglobal')}
-                    className={`flex-1 py-1 px-2 rounded text-sm ${
-                      costConfig.provider === 'vglobal'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-white border hover:bg-gray-50'
-                    }`}
-                  >
-                    Vglobal
-                  </button>
-                  <button
-                    onClick={() => handleProviderChange('4as')}
-                    className={`flex-1 py-1 px-2 rounded text-sm ${
-                      costConfig.provider === '4as'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-white border hover:bg-gray-50'
-                    }`}
-                  >
-                    4as
-                  </button>
-                </div>
-              </div>
-              
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Transport Mode</label>
                 <div className="flex space-x-1">
@@ -301,9 +381,7 @@ const CostAnalysis = () => {
                   </button>
                 </div>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mt-3">
+              
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Storage Weeks</label>
                 <input

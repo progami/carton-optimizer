@@ -206,26 +206,70 @@ const CostOptimization = () => {
         <div className="mb-6">
           <h3 className="font-semibold text-gray-700 mb-2">Comparative Analysis</h3>
           <p className="text-sm text-gray-600 mb-4">
-            This page compares carton configurations for a single SKU to find the optimal size.
-            Select the SKU and quantity to optimize for your specific needs.
+            This page compares carton configurations across all SKUs to find optimal sizes.
+            Select an SKU to see detailed analysis.
           </p>
           
+          {/* SKU Optimization Results Table - NEW */}
+          <div className="mb-6">
+            <h3 className="font-semibold text-gray-700 mb-3">SKU Optimization Results</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-white border">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">SKU ID</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">Optimal Carton</th>
+                    <th className="py-2 px-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">Units/Carton</th>
+                    <th className="py-2 px-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">Cartons/Pallet</th>
+                    <th className="py-2 px-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">Cost Per Unit</th>
+                    <th className="py-2 px-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {availableSkus.map(skuId => {
+                    // Get all cartons for this SKU
+                    const skuCartons = candidateCartons.filter(c => c.skuId === skuId);
+                    
+                    // Generate comparative data for this SKU
+                    const skuComparativeData = generateComparativeData(costConfig.totalDemand, skuCartons, costConfig);
+                    
+                    // Find optimal carton for this SKU
+                    const skuOptimalConfig = skuComparativeData.reduce(
+                      (best, current) => current.costPerUnit < best.costPerUnit ? current : best,
+                      skuComparativeData[0] || { costPerUnit: 0, cartonId: 0, unitsPerCarton: 0, cartonsPerPallet: 0, dimensions: '' }
+                    );
+                    
+                    // Get the optimal carton object
+                    const optimalCarton = skuCartons.find(c => c.id === skuOptimalConfig.cartonId);
+                    
+                    return (
+                      <tr key={skuId} className={activeSku === skuId ? 'bg-blue-50' : ''}>
+                        <td className="py-2 px-3 border">{skuId}</td>
+                        <td className="py-2 px-3 border">{skuOptimalConfig.dimensions || 'N/A'}</td>
+                        <td className="py-2 px-3 text-center border">{skuOptimalConfig.unitsPerCarton || 'N/A'}</td>
+                        <td className="py-2 px-3 text-center border">{skuOptimalConfig.cartonsPerPallet || 'N/A'}</td>
+                        <td className="py-2 px-3 text-right font-medium border">
+                          {formatCurrency(skuOptimalConfig.costPerUnit)}
+                        </td>
+                        <td className="py-2 px-3 text-center border">
+                          <button
+                            onClick={() => setActiveSku(skuId)}
+                            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-all text-sm"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
           <div className="p-4 bg-gray-50 rounded-lg">
+            <h4 className="font-medium text-gray-700 mb-2">Detailed Analysis for {activeSku}</h4>
             <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* SKU Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Select SKU</label>
-                <select
-                  className="w-full p-2 border rounded"
-                  value={activeSku}
-                  onChange={(e) => setActiveSku(e.target.value)}
-                >
-                  {availableSkus.map(sku => (
-                    <option key={sku} value={sku}>{sku}</option>
-                  ))}
-                </select>
-              </div>
-              
               {/* Quantity Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Analysis Quantity</label>

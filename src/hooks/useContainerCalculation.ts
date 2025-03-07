@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useCarton, useCostConfig } from '../contexts/CartonContext';
 import { 
   calculateCostComponents, 
-  calculateTotalContainerCost, 
   normalizeVolumePercentages,
   CONTAINER_TYPES,
   DEFAULT_CONTAINER_COSTS
@@ -24,6 +23,7 @@ export interface ContainerCosts {
   portProcessing: number;
   haulage: number;
   unloading: number;
+  [key: string]: number; // Add index signature to make it compatible with Record<string, number>
 }
 
 export interface CostBreakdown {
@@ -64,10 +64,23 @@ export const useContainerCalculation = () => {
   const { candidateCartons, skus, getOptimalCartonForSku } = useCarton();
   const { costConfig } = useCostConfig();
 
-  // Container configuration
+  // Container configuration with explicit defaults
   const [containerType, setContainerType] = useState<keyof typeof CONTAINER_TYPES>('40HC');
   const [totalContainers, setTotalContainers] = useState<number>(1);
-  const [containerCosts, setContainerCosts] = useState<ContainerCosts>(DEFAULT_CONTAINER_COSTS);
+  
+  // Initialize container costs with proper defaults
+  const [containerCosts, setContainerCosts] = useState<ContainerCosts>({
+    freight: 4000,
+    terminalHandling: 450,
+    portProcessing: 150,
+    haulage: 835,
+    unloading: 500,
+  });
+  
+  // Debug initialization
+  useEffect(() => {
+    console.log("Initial container costs:", containerCosts);
+  }, []);
   
   // State for SKUs in container
   const [containerSkus, setContainerSkus] = useState<ContainerSKU[]>([]);
@@ -152,6 +165,7 @@ export const useContainerCalculation = () => {
 
   // Calculate costs for each SKU including supply chain costs from Part 2A
   useEffect(() => {
+    // Skip execution if no data
     if (unmounted || containerSkus.length === 0) return;
     
     // Force volume percentages to add up to 100%
@@ -162,19 +176,37 @@ export const useContainerCalculation = () => {
       return;
     }
     
-    const totalCost = calculateTotalContainerCost(containerCosts, totalContainers);
-    console.log("Total container cost:", totalCost);
-    setTotalContainerCost(totalCost);
+    // Calculate container costs directly without relying on utility function
+    const containerBaseRate = 
+      parseFloat(containerCosts.freight.toString()) + 
+      parseFloat(containerCosts.terminalHandling.toString()) + 
+      parseFloat(containerCosts.portProcessing.toString()) + 
+      parseFloat(containerCosts.haulage.toString()) + 
+      parseFloat(containerCosts.unloading.toString());
     
-    let totalSupplyChain = 0;
-    let grandTotal = 0;
+    // Multiply by number of containers
+    const calculatedTotalContainerCost = containerBaseRate * totalContainers;
     
-    // Calculate cost breakdown per SKU
-    const breakdown = containerSkus.map((sku: ContainerSKU) => {
+    // Debug output
+    console.log("Container costs calculation:", {
+      freight: containerCosts.freight,
+      terminalHandling: containerCosts.terminalHandling,
+      portProcessing: containerCosts.portProcessing,
+      haulage: containerCosts.haulage,
+      unloading: containerCosts.unloading,
+      baseRate: containerBaseRate,
+      totalContainers,
+      calculatedTotalContainerCost
+    });
+    
+    // Explicitly set the total container cost
+    setTotalContainerCost(calculatedTotalContainerCost);
+    
+    // Force a state update by creating new breakdown array
+    const updatedBreakdown = containerSkus.map(sku => {
       // Get carton details
       const carton = candidateCartons.find(c => c.id === sku.cartonId);
       if (!carton) {
-        // Return placeholder if carton not found
         return {
           skuId: sku.id,
           skuName: sku.skuName,
@@ -195,79 +227,90 @@ export const useContainerCalculation = () => {
         };
       }
       
-      const dimensions = `${carton.length}×${carton.width}×${carton.height} cm`;
+      // Calculate SKU's portion of container cost
+      const skuContainerCost = calculatedTotalContainerCost * (sku.volumePercentage / 100);
       
-      // Container cost attribution based on volume percentage
-      const skuContainerCost = totalCost * (sku.volumePercentage / 100);
-      const containerCostPerUnit = sku.quantity > 0 ? skuContainerCost / sku.quantity : 0;
-      
-      // Calculate supply chain costs from Part 2A
-      const costResults = calculateCostComponents(
-        sku.quantity,
-        carton.id,
-        carton.id,
-        candidateCartons,
-        costConfig
-      );
-      
+      // Calculate supply chain costs
       let cartonCosts = 0;
       let palletCosts = 0;
-      let supplyChainCost = 0;
-      let supplyChainCostPerUnit = 0;
       
-      if (costResults) {
-        // Extract costs from the results
-        cartonCosts = costResults.cartonCosts || 0;
-        
-        // Combine all pallet-related costs
-        palletCosts = (costResults.palletHandlingCosts || 0) + 
-                      (costResults.storageCosts || 0) + 
-                      (costResults.transportCosts || 0);
-        
-        supplyChainCost = cartonCosts + palletCosts;
-        supplyChainCostPerUnit = costResults.costPerUnit || 0;
-      }
+      // Calculate physical units, cartons, and pallets
+      const unitsPerCarton = carton.unitsPerCarton;
+      const cartonsPerPallet = carton.cartonsPerPallet;
+      const totalCartons = Math.ceil(sku.quantity / unitsPerCarton);
+      const totalPallets = Math.ceil(totalCartons / cartonsPerPallet);
       
-      // Total costs (container + supply chain)
-      const totalSkuCost = skuContainerCost + supplyChainCost;
-      const totalCostPerUnit = sku.quantity > 0 ? totalSkuCost / sku.quantity : 0;
+      // Calculate carton-related costs
+      cartonCosts = totalCartons * (costConfig.cartonHandlingCost + costConfig.cartonUnloadingCost);
       
-      // Add to running totals
-      totalSupplyChain += supplyChainCost;
-      grandTotal += totalSkuCost;
+      // Calculate pallet-related costs
+      const storageWeeks = costConfig.storageWeeks;
+      const storageAndHandlingCost = totalPallets * (costConfig.palletHandlingCost + 
+                                    costConfig.palletStorageCostPerWeek * storageWeeks);
+      
+      // Calculate transport costs
+      let transportCost = 0;
+      const ltlCost = totalPallets * costConfig.ltlCostPerPallet;
+      const ftlCost = Math.ceil(totalPallets / costConfig.palletsPerTruck) * costConfig.ftlCostPerTruck;
+      
+      // Choose the cheaper transport option
+      transportCost = Math.min(ltlCost, ftlCost);
+      
+      // Total pallet-related costs
+      palletCosts = storageAndHandlingCost + transportCost;
+      
+      // Total supply chain cost
+      const supplyChainCost = cartonCosts + palletCosts;
+      
+      // Total cost and per unit cost
+      const totalCost = skuContainerCost + supplyChainCost;
+      const costPerUnit = sku.quantity > 0 ? totalCost / sku.quantity : 0;
       
       return {
         skuId: sku.id,
         skuName: sku.skuName,
         cartonId: carton.id,
-        dimensions,
+        dimensions: `${carton.length}×${carton.width}×${carton.height} cm`,
         quantity: sku.quantity,
         containerCosts: skuContainerCost,
-        containerCostPerUnit,
+        containerCostPerUnit: sku.quantity > 0 ? skuContainerCost / sku.quantity : 0,
         cartonCosts,
         palletCosts,
         supplyChainCost,
-        supplyChainCostPerUnit,
-        totalCost: totalSkuCost,
-        totalCostPerUnit,
+        supplyChainCostPerUnit: sku.quantity > 0 ? supplyChainCost / sku.quantity : 0,
+        totalCost,
+        totalCostPerUnit: costPerUnit,
         volumePercentage: sku.volumePercentage,
         unitsPerCarton: carton.unitsPerCarton,
         cartonsPerPallet: carton.cartonsPerPallet
       };
     });
     
-    setCostBreakdown(breakdown);
+    // Update state with the new breakdown
+    setCostBreakdown(updatedBreakdown);
+    
+    // Calculate totals
+    const totalSupplyChain = updatedBreakdown.reduce(
+      (sum, sku) => sum + sku.supplyChainCost, 
+      0
+    );
+    
+    const grandTotal = updatedBreakdown.reduce(
+      (sum, sku) => sum + sku.totalCost,
+      0
+    );
+    
+    // Update state with calculated values
     setTotalSupplyChainCost(totalSupplyChain);
     setGrandTotalCost(grandTotal);
     
-    console.log("Updated cost breakdown:", {
-      totalContainerCost,
+    console.log("Final calculated values:", {
+      calculatedTotalContainerCost,
       totalSupplyChain,
-      grandTotal,
-      breakdownItems: breakdown.length
+      grandTotal
     });
     
-  }, [containerSkus, containerCosts, totalContainers, recalculateVolumePercentages, candidateCartons, costConfig, unmounted]);
+  }, [containerSkus, containerCosts, totalContainers, candidateCartons, costConfig, recalculateVolumePercentages, unmounted]);
 
   return {
     // Container configuration
