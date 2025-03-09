@@ -137,7 +137,7 @@ export const CartonProvider = ({ children }: { children: React.ReactNode }) => {
   const [skus] = useState<SKUType[]>(defaultSkus);
 
   const [candidateCartons, setCandidateCartons] = useState<CartonType[]>([
-    // Default carton configurations based on real data
+    // Original carton configurations
     { id: 1, skuId: 'CS 007', length: 40, width: 44, height: 52.5, unitsPerCarton: 60, cartonsPerPallet: 18, isSelected: true },
     { id: 2, skuId: 'CS 009', length: 38, width: 44, height: 52.5, unitsPerCarton: 36, cartonsPerPallet: 18, isSelected: false },
     { id: 3, skuId: 'CS 011', length: 41, width: 26, height: 51.5, unitsPerCarton: 24, cartonsPerPallet: 24, isSelected: false },
@@ -145,7 +145,47 @@ export const CartonProvider = ({ children }: { children: React.ReactNode }) => {
     { id: 5, skuId: 'CS-CDS-001', length: 32, width: 60, height: 53, unitsPerCarton: 33, cartonsPerPallet: 18, isSelected: false },
     { id: 6, skuId: 'CS-CDS-002', length: 32, width: 60, height: 50, unitsPerCarton: 14, cartonsPerPallet: 20, isSelected: false },
     { id: 7, skuId: 'CS 008', length: 40, width: 28, height: 29.5, unitsPerCarton: 60, cartonsPerPallet: 45, isSelected: false },
-    { id: 8, skuId: 'CS 010', length: 41, width: 28, height: 39.5, unitsPerCarton: 52, cartonsPerPallet: 40, isSelected: false }
+    { id: 8, skuId: 'CS 010', length: 41, width: 28, height: 39.5, unitsPerCarton: 52, cartonsPerPallet: 40, isSelected: false },
+    
+    // Additional configurations for CS 007
+    { id: 9, skuId: 'CS 007', length: 38, width: 45, height: 53, unitsPerCarton: 54, cartonsPerPallet: 20, isSelected: false },
+    { id: 10, skuId: 'CS 007', length: 42, width: 42, height: 50, unitsPerCarton: 66, cartonsPerPallet: 16, isSelected: false },
+    { id: 11, skuId: 'CS 007', length: 35, width: 50, height: 55, unitsPerCarton: 48, cartonsPerPallet: 22, isSelected: false },
+    
+    // Additional configurations for CS 009
+    { id: 12, skuId: 'CS 009', length: 40, width: 40, height: 50, unitsPerCarton: 40, cartonsPerPallet: 20, isSelected: false },
+    { id: 13, skuId: 'CS 009', length: 36, width: 46, height: 55, unitsPerCarton: 32, cartonsPerPallet: 16, isSelected: false },
+    { id: 14, skuId: 'CS 009', length: 42, width: 42, height: 48, unitsPerCarton: 44, cartonsPerPallet: 24, isSelected: false },
+    
+    // Additional configurations for CS 011
+    { id: 15, skuId: 'CS 011', length: 40, width: 28, height: 50, unitsPerCarton: 28, cartonsPerPallet: 28, isSelected: false },
+    { id: 16, skuId: 'CS 011', length: 42, width: 24, height: 52, unitsPerCarton: 22, cartonsPerPallet: 30, isSelected: false },
+    { id: 17, skuId: 'CS 011', length: 38, width: 30, height: 48, unitsPerCarton: 26, cartonsPerPallet: 22, isSelected: false },
+    
+    // Additional configurations for CS 012
+    { id: 18, skuId: 'CS 012', length: 42, width: 30, height: 50, unitsPerCarton: 18, cartonsPerPallet: 26, isSelected: false },
+    { id: 19, skuId: 'CS 012', length: 46, width: 24, height: 52, unitsPerCarton: 14, cartonsPerPallet: 30, isSelected: false },
+    { id: 20, skuId: 'CS 012', length: 38, width: 32, height: 48, unitsPerCarton: 20, cartonsPerPallet: 22, isSelected: false },
+    
+    // Additional configurations for CS-CDS-001
+    { id: 21, skuId: 'CS-CDS-001', length: 34, width: 58, height: 52, unitsPerCarton: 35, cartonsPerPallet: 20, isSelected: false },
+    { id: 22, skuId: 'CS-CDS-001', length: 30, width: 62, height: 55, unitsPerCarton: 30, cartonsPerPallet: 16, isSelected: false },
+    { id: 23, skuId: 'CS-CDS-001', length: 36, width: 56, height: 50, unitsPerCarton: 38, cartonsPerPallet: 22, isSelected: false },
+    
+    // Additional configurations for CS-CDS-002
+    { id: 24, skuId: 'CS-CDS-002', length: 34, width: 58, height: 48, unitsPerCarton: 16, cartonsPerPallet: 22, isSelected: false },
+    { id: 25, skuId: 'CS-CDS-002', length: 30, width: 62, height: 52, unitsPerCarton: 12, cartonsPerPallet: 18, isSelected: false },
+    { id: 26, skuId: 'CS-CDS-002', length: 34, width: 56, height: 46, unitsPerCarton: 18, cartonsPerPallet: 24, isSelected: false },
+    
+    // Additional configurations for CS 008
+    { id: 27, skuId: 'CS 008', length: 38, width: 30, height: 30, unitsPerCarton: 54, cartonsPerPallet: 40, isSelected: false },
+    { id: 28, skuId: 'CS 008', length: 42, width: 26, height: 28, unitsPerCarton: 65, cartonsPerPallet: 50, isSelected: false },
+    { id: 29, skuId: 'CS 008', length: 36, width: 32, height: 32, unitsPerCarton: 56, cartonsPerPallet: 38, isSelected: false },
+    
+    // Additional configurations for CS 010
+    { id: 30, skuId: 'CS 010', length: 40, width: 30, height: 40, unitsPerCarton: 48, cartonsPerPallet: 36, isSelected: false },
+    { id: 31, skuId: 'CS 010', length: 42, width: 26, height: 38, unitsPerCarton: 56, cartonsPerPallet: 45, isSelected: false },
+    { id: 32, skuId: 'CS 010', length: 39, width: 32, height: 42, unitsPerCarton: 45, cartonsPerPallet: 35, isSelected: false },
   ]);
 
   const [providerRates, setProviderRates] = useState<ProviderRates>({
