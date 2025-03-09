@@ -3,16 +3,33 @@
 // Define types for carton and cost config
 interface CartonType {
   id: number;
+  skuId: string;
   length: number;
   width: number;
   height: number;
   unitsPerCarton: number;
   cartonsPerPallet: number;
-  isSelected: boolean;
+  isSelected?: boolean;
+}
+
+type ProviderName = 'fmc' | 'vglobal' | '4as';
+
+interface ProviderRate {
+  cartonHandlingCost: number;
+  cartonUnloadingCost: number;
+  palletStorageCostPerWeek: number;
+  palletHandlingCost: number;
+  ltlCostPerPallet: number;
+  ftlCostPerTruck: number;
+  palletsPerTruck: number;
+}
+
+interface ProviderRates {
+  [key: string]: ProviderRate;
 }
 
 interface CostConfigType {
-  provider: string;
+  provider: ProviderName;
   cartonHandlingCost: number;
   cartonUnloadingCost: number;
   palletStorageCostPerWeek: number;
@@ -26,352 +43,216 @@ interface CostConfigType {
   showTotalCosts: boolean;
 }
 
-// Define the cost calculation result type
-interface CostCalculationResult {
-  quantity: number;
-  totalCartons: number;
-  totalPallets: number;      // Calculated (fractional) pallets - for display only
-  physicalPallets: number;   // Actual physical (whole) pallets - used for cost calculations
-  cartonCosts: number;
-  storageCosts: number;
-  palletHandlingCosts: number;
-  transportCosts: number;
-  totalCost: number;
-  costPerUnit: number;
-  cartonCostPerUnit: number;
-  storageCostPerUnit: number;
-  transportCostPerUnit: number;
-  ltlCost: number;
-  ftlCost: number;
-  transportMode: string;
-  carton: CartonType;
-  cartonCostPercentage: number;
-  storageCostPercentage: number;
-  transportCostPercentage: number;
-}
-
-// Define comparative data result type
-interface ComparativeDataResult extends CostCalculationResult {
+export interface CostAnalysisResult {
+  skuId: string;
   cartonId: number;
   dimensions: string;
   unitsPerCarton: number;
   cartonsPerPallet: number;
+  unitsPerPallet: number;
+  provider: ProviderName;
+  lcmQuantity: number;
+  cartonCostsPerUnit: number;
+  palletCostsPerUnit: number;
+  totalCostPerUnit: number;
+  isOptimal: boolean;
 }
 
-// Define optimal config result type
-interface OptimalConfigResult {
-  quantity: number;
-  optimalCartonId: number;
-  dimensions: string;
-  costPerUnit: number;
-}
+// Find the Greatest Common Divisor (GCD) of two numbers
+export const gcd = (a: number, b: number): number => {
+  return b === 0 ? a : gcd(b, a % b);
+};
 
-// Define cost components data type
-interface CostComponentsData {
-  quantity: number;
-  cartonCosts: number;
-  storageCosts: number;
-  transportCosts: number;
-  totalCost: number;
-  totalPallets: number;
-}
+// Find the Least Common Multiple (LCM) of two numbers
+export const lcm = (a: number, b: number): number => {
+  return (a * b) / gcd(a, b);
+};
 
-// Define comparative curves entry type
-interface ComparativeCurveEntry {
-  quantity: number;
-  [key: string]: number | string;
-}
+// Find the LCM of an array of numbers
+export const findLCM = (numbers: number[]): number => {
+  return numbers.reduce((result, num) => lcm(result, num), 1);
+};
 
-// Calculate cost for a given quantity and carton configuration
-export const calculateCostComponents = (
-  quantity: number, 
-  cartonId: number | null, 
-  selectedCartonId: number, 
-  candidateCartons: CartonType[], 
-  costConfig: CostConfigType
-): CostCalculationResult | null => {
-  // Find the carton configuration
-  const selectedCarton = candidateCartons.find(c => c.id === (cartonId || selectedCartonId));
-  if (!selectedCarton) return null;
-
-  const unitsPerCarton = selectedCarton.unitsPerCarton;
-  const cartonsPerPallet = selectedCarton.cartonsPerPallet;
-
-  // Calculate derived quantities - always use ceiling for actual cartons needed
-  const totalCartons = Math.ceil(quantity / unitsPerCarton);
+// Calculate cost analysis for a carton configuration with a specific provider
+export const calculateCostAnalysis = (
+  carton: CartonType,
+  providerRates: ProviderRate,
+  storageWeeks: number,
+  transportMode: 'auto' | 'ltl' | 'ftl',
+  palletsPerTruck: number,
+  provider: ProviderName
+): CostAnalysisResult => {
+  const unitsPerCarton = carton.unitsPerCarton;
+  const cartonsPerPallet = carton.cartonsPerPallet;
+  const unitsPerPallet = unitsPerCarton * cartonsPerPallet;
   
-  // Calculate both fractional pallets (for display) and whole pallets (for costs)
-  const calculatedPallets = totalCartons / cartonsPerPallet;
-  const physicalPallets = Math.ceil(calculatedPallets);
+  // Calculate LCM quantity
+  // For LTL, we use units/carton and units/pallet
+  // For FTL, we also consider units/truck
+  let lcmQuantity: number;
   
-  // C₁ = Carton-Related Costs
-  const cartonHandlingFee = costConfig.cartonHandlingCost;
-  const cartonUnloadingFee = costConfig.cartonUnloadingCost;
-  const cartonCosts = totalCartons * (cartonHandlingFee + cartonUnloadingFee);
-
-  // C₂ = Pallet-Related Storage Costs - ALWAYS use whole pallets
-  const palletStorageFee = costConfig.palletStorageCostPerWeek;
-  const storageWeeks = costConfig.storageWeeks;
-  const storageCosts = physicalPallets * palletStorageFee * storageWeeks;
-
-  // C₃ = Pallet-Related Transportation Costs - ALWAYS use whole pallets
-  const palletHandlingFee = costConfig.palletHandlingCost;
-  const palletHandlingCosts = physicalPallets * palletHandlingFee;
-
-  // LTL_cost = N_pallets × Cost_per_pallet_LTL + (N_pallets × Pallet_handling_cost)
-  const ltlCostPerPallet = costConfig.ltlCostPerPallet;
-  const ltlCost = physicalPallets * ltlCostPerPallet;
-
-  // FTL_cost = Ceiling(N_pallets ÷ Pallets_per_trailer) × Cost_per_trailer
-  const ftlCostPerTruck = costConfig.ftlCostPerTruck;
-  const palletsPerTruck = costConfig.palletsPerTruck;
-  const ftlCost = Math.ceil(physicalPallets / palletsPerTruck) * ftlCostPerTruck;
-
-  // Choose transport mode based on setting or auto-select
-  let transportCosts;
-  let transportMode;
-
-  if (costConfig.transportMode === 'ltl') {
-    transportCosts = ltlCost + palletHandlingCosts;
-    transportMode = 'LTL';
-  } else if (costConfig.transportMode === 'ftl') {
-    transportCosts = ftlCost + palletHandlingCosts;
-    transportMode = 'FTL';
+  if (transportMode === 'ltl' || transportMode === 'auto') {
+    lcmQuantity = findLCM([unitsPerCarton, unitsPerPallet]);
   } else {
-    // Auto mode - choose the minimum cost option
-    if (ltlCost <= ftlCost) {
-      transportCosts = ltlCost + palletHandlingCosts;
-      transportMode = 'LTL';
-    } else {
-      transportCosts = ftlCost + palletHandlingCosts;
-      transportMode = 'FTL';
-    }
+    const unitsPerTruck = unitsPerPallet * palletsPerTruck;
+    lcmQuantity = findLCM([unitsPerCarton, unitsPerPallet, unitsPerTruck]);
   }
-
-  // Total costs
-  const totalCost = cartonCosts + storageCosts + transportCosts;
-
-  // Calculate cost per unit
-  const costPerUnit = totalCost / quantity;
-
-  // Calculate component costs per unit
-  const cartonCostPerUnit = cartonCosts / quantity;
-  const storageCostPerUnit = storageCosts / quantity;
-  const transportCostPerUnit = transportCosts / quantity;
-
-  // Calculate component percentages
-  const cartonCostPercentage = (cartonCosts / totalCost) * 100;
-  const storageCostPercentage = (storageCosts / totalCost) * 100;
-  const transportCostPercentage = (transportCosts / totalCost) * 100;
-
+  
+  // Ensure a reasonable minimum quantity for better cost representation
+  lcmQuantity = Math.max(lcmQuantity, 1000);
+  
+  // Calculate total cartons and pallets needed
+  const totalCartons = Math.ceil(lcmQuantity / unitsPerCarton);
+  const totalPallets = Math.ceil(totalCartons / cartonsPerPallet);
+  
+  // Calculate carton-related costs (g1)
+  const cartonHandlingCost = providerRates.cartonHandlingCost;
+  const cartonUnloadingCost = providerRates.cartonUnloadingCost;
+  const cartonCosts = totalCartons * (cartonHandlingCost + cartonUnloadingCost);
+  const cartonCostsPerUnit = cartonCosts / lcmQuantity;
+  
+  // Calculate pallet-related costs (g2)
+  const palletHandlingCost = providerRates.palletHandlingCost;
+  const palletStorageCost = providerRates.palletStorageCostPerWeek * storageWeeks;
+  
+  // Calculate transport costs based on mode
+  let transportCost: number;
+  
+  if (transportMode === 'ltl') {
+    transportCost = totalPallets * providerRates.ltlCostPerPallet;
+  } else if (transportMode === 'ftl') {
+    transportCost = Math.ceil(totalPallets / palletsPerTruck) * providerRates.ftlCostPerTruck;
+  } else {
+    // Auto mode - choose the cheaper option
+    const ltlCost = totalPallets * providerRates.ltlCostPerPallet;
+    const ftlCost = Math.ceil(totalPallets / palletsPerTruck) * providerRates.ftlCostPerTruck;
+    transportCost = Math.min(ltlCost, ftlCost);
+  }
+  
+  const palletCosts = (totalPallets * palletHandlingCost) + 
+                      (totalPallets * palletStorageCost) + 
+                      transportCost;
+  
+  const palletCostsPerUnit = palletCosts / lcmQuantity;
+  
+  // Calculate total cost per unit
+  const totalCostPerUnit = cartonCostsPerUnit + palletCostsPerUnit;
+  
   return {
-    quantity,
-    totalCartons,
-    totalPallets: calculatedPallets,   // Fractional number for display
-    physicalPallets,                   // Whole number for cost calculations
-    cartonCosts,
-    storageCosts,
-    palletHandlingCosts,
-    transportCosts,
-    totalCost,
-    costPerUnit,
-    cartonCostPerUnit,
-    storageCostPerUnit,
-    transportCostPerUnit,
-    ltlCost,
-    ftlCost,
-    transportMode,
-    carton: selectedCarton,
-    cartonCostPercentage,
-    storageCostPercentage,
-    transportCostPercentage
+    skuId: carton.skuId,
+    cartonId: carton.id,
+    dimensions: `${carton.length}×${carton.width}×${carton.height} cm`,
+    unitsPerCarton,
+    cartonsPerPallet,
+    unitsPerPallet,
+    provider,
+    lcmQuantity,
+    cartonCostsPerUnit,
+    palletCostsPerUnit,
+    totalCostPerUnit,
+    isOptimal: false // Will be set later when comparing results
   };
 };
 
-// Generate scaling data for analysis
-export const generateScalingData = (
-  maxQuantity: number, 
-  cartonId: number | null, 
-  selectedCartonId: number, 
-  candidateCartons: CartonType[], 
-  costConfig: CostConfigType
-): CostCalculationResult[] => {
-  const data: CostCalculationResult[] = [];
-  const selectedCarton = candidateCartons.find(c => c.id === (cartonId || selectedCartonId));
-  if (!selectedCarton) return data;
-
-  // Always include a data point at the current quantity
-  const currentQuantity = costConfig.totalDemand;
+// Calculate cost analysis for all cartons and all providers
+export const calculateAllCostAnalyses = (
+  cartons: CartonType[],
+  providerRates: ProviderRates,
+  storageWeeks: number,
+  transportMode: 'auto' | 'ltl' | 'ftl',
+  palletsPerTruck: number = 25 // Default value
+): CostAnalysisResult[] => {
+  const results: CostAnalysisResult[] = [];
   
-  // Generate at least 20 data points, with more for larger ranges
-  const minPoints = 20;
-  const pointCount = Math.max(minPoints, Math.min(40, maxQuantity / 500));
-  
-  // Create an array of quantities to calculate
-  const quantities: number[] = [];
-  
-  // Always include small quantities for better curve visualization
-  quantities.push(1);
-  if (maxQuantity > 100) quantities.push(100);
-  if (maxQuantity > 1000) quantities.push(1000);
-  
-  // Then add evenly spaced points
-  const step = maxQuantity / pointCount;
-  for (let i = 1; i <= pointCount; i++) {
-    const qty = Math.round(i * step);
-    if (qty > quantities[quantities.length - 1]) {
-      quantities.push(qty);
-    }
-  }
-  
-  // Always include the current quantity
-  if (!quantities.includes(currentQuantity)) {
-    quantities.push(currentQuantity);
-  }
-  
-  // Sort quantities and remove duplicates
-  const uniqueQuantities = [...new Set(quantities)].sort((a, b) => a - b);
-  
-  // Calculate cost data for each quantity
-  for (const quantity of uniqueQuantities) {
-    const costData = calculateCostComponents(quantity, cartonId, selectedCartonId, candidateCartons, costConfig);
-    if (costData) {
-      data.push(costData);
-    }
-  }
-
-  return data;
-};
-
-// Generate data for quantity intervals
-export const generateIntervalData = (
-  cartonId: number | null, 
-  selectedCartonId: number, 
-  candidateCartons: CartonType[], 
-  costConfig: CostConfigType
-): (CostCalculationResult | null)[] => {
-  const quantityIntervals = [1000, 5000, 10000, 20000, 50000];
-  return quantityIntervals.map(quantity =>
-    calculateCostComponents(quantity, cartonId, selectedCartonId, candidateCartons, costConfig)
-  );
-};
-
-// Generate comparative data across all carton configurations
-export const generateComparativeData = (
-  quantity: number, 
-  candidateCartons: CartonType[], 
-  costConfig: CostConfigType
-): ComparativeDataResult[] => {
-  return candidateCartons.map(carton => {
-    const costData = calculateCostComponents(quantity, carton.id, carton.id, candidateCartons, costConfig);
-    if (!costData) {
-      // This should never happen since we're iterating over existing cartons,
-      // but TypeScript wants us to handle this case
-      throw new Error(`Failed to calculate costs for carton ${carton.id}`);
-    }
-    
-    return {
-      ...costData,
-      cartonId: carton.id,
-      dimensions: `${carton.length}×${carton.width}×${carton.height} cm`,
-      unitsPerCarton: carton.unitsPerCarton,
-      cartonsPerPallet: carton.cartonsPerPallet
-    };
+  // Process all cartons with all providers
+  cartons.forEach(carton => {
+    Object.entries(providerRates).forEach(([provider, rates]) => {
+      const result = calculateCostAnalysis(
+        carton,
+        rates,
+        storageWeeks,
+        transportMode,
+        palletsPerTruck,
+        provider as ProviderName
+      );
+      results.push(result);
+    });
   });
-};
-
-// Find carton configuration with lowest cost at each quantity interval
-export const generateOptimalConfigByQuantity = (
-  candidateCartons: CartonType[], 
-  costConfig: CostConfigType
-): OptimalConfigResult[] => {
-  const quantityIntervals = [1000, 5000, 10000, 20000, 50000];
-  return quantityIntervals.map(quantity => {
-    const comparisons = candidateCartons.map(carton => {
-      const costData = calculateCostComponents(quantity, carton.id, carton.id, candidateCartons, costConfig);
-      if (!costData) {
-        throw new Error(`Failed to calculate costs for carton ${carton.id}`);
-      }
+  
+  // Set isOptimal flag for the lowest cost configuration for each SKU
+  const skuGroups = groupResultsBySKU(results);
+  
+  Object.values(skuGroups).forEach(group => {
+    if (group.length > 0) {
+      // Find the minimum cost configuration in this group
+      const minCostConfig = group.reduce(
+        (min, current) => current.totalCostPerUnit < min.totalCostPerUnit ? current : min,
+        group[0]
+      );
       
-      return {
-        cartonId: carton.id,
-        dimensions: `${carton.length}×${carton.width}×${carton.height}`,
-        costPerUnit: costData.costPerUnit,
-        unitsPerCarton: carton.unitsPerCarton,
-        cartonsPerPallet: carton.cartonsPerPallet
-      };
-    });
-
-    // Find the minimum cost configuration
-    const optimalConfig = comparisons.reduce((min, current) =>
-      current.costPerUnit < min.costPerUnit ? current : min
-    , comparisons[0]);
-
-    return {
-      quantity,
-      optimalCartonId: optimalConfig.cartonId,
-      dimensions: optimalConfig.dimensions,
-      costPerUnit: optimalConfig.costPerUnit
-    };
-  });
-};
-
-// Generate data for cost breakdown visualization
-export const generateCostComponentsData = (
-  data: CostCalculationResult[]
-): CostComponentsData[] => {
-  return data.map(item => ({
-    quantity: item.quantity,
-    cartonCosts: item.cartonCosts / item.quantity,
-    storageCosts: item.storageCosts / item.quantity,
-    transportCosts: item.transportCosts / item.quantity,
-    totalCost: item.costPerUnit,
-    totalPallets: item.physicalPallets
-  }));
-};
-
-// Generate data for comparative cost curves
-export const generateComparativeCurves = (
-  candidateCartons: CartonType[], 
-  costConfig: CostConfigType
-): ComparativeCurveEntry[] => {
-  const maxQuantity = Math.max(costConfig.totalDemand * 2, 20000);
-  const data: ComparativeCurveEntry[] = [];
-
-  // Calculate step sizes for each carton to avoid step function
-  const stepSizes = candidateCartons.map(carton => {
-    const unitsPerCarton = carton.unitsPerCarton;
-    const cartonsPerPallet = carton.cartonsPerPallet;
-    return unitsPerCarton * cartonsPerPallet; // Units per pallet
-  });
-
-  // Use the smallest step size that works for all carton types
-  const commonStep = Math.max(...stepSizes);
-
-  // Ensure we don't have too many data points
-  const numPoints = 40;
-  const step = Math.max(commonStep, Math.ceil(maxQuantity / numPoints / commonStep) * commonStep);
-
-  for (let quantity = step; quantity <= maxQuantity; quantity += step) {
-    const entry: ComparativeCurveEntry = { quantity };
-
-    candidateCartons.forEach(carton => {
-      const costData = calculateCostComponents(quantity, carton.id, carton.id, candidateCartons, costConfig);
-      if (costData) {
-        entry[`carton_${carton.id}`] = costData.costPerUnit;
-        entry[`carton_${carton.id}_dim`] = `${carton.length}×${carton.width}×${carton.height}`;
+      // Set the isOptimal flag for this configuration
+      const index = results.findIndex(
+        r => r.skuId === minCostConfig.skuId && 
+             r.cartonId === minCostConfig.cartonId && 
+             r.provider === minCostConfig.provider
+      );
+      
+      if (index !== -1) {
+        results[index].isOptimal = true;
       }
-    });
-
-    data.push(entry);
-  }
-
-  return data;
+    }
+  });
+  
+  return results;
 };
 
-// =====================================
-// Container-related utility functions
-// =====================================
+// Group results by SKU for easier processing
+export const groupResultsBySKU = (
+  results: CostAnalysisResult[]
+): Record<string, CostAnalysisResult[]> => {
+  const groups: Record<string, CostAnalysisResult[]> = {};
+  
+  results.forEach(result => {
+    if (!groups[result.skuId]) {
+      groups[result.skuId] = [];
+    }
+    groups[result.skuId].push(result);
+  });
+  
+  return groups;
+};
+
+// Group results by SKU and provider for easier processing
+export const groupResultsBySKUAndProvider = (
+  results: CostAnalysisResult[]
+): Record<string, CostAnalysisResult[]> => {
+  const groups: Record<string, CostAnalysisResult[]> = {};
+  
+  results.forEach(result => {
+    const key = `${result.skuId}-${result.provider}`;
+    if (!groups[key]) {
+      groups[key] = [];
+    }
+    groups[key].push(result);
+  });
+  
+  return groups;
+};
+
+// Find the optimal carton for each SKU (lowest cost across all providers)
+export const findOptimalCartonsPerSKU = (
+  results: CostAnalysisResult[]
+): CostAnalysisResult[] => {
+  const skuGroups = groupResultsBySKU(results);
+  
+  return Object.keys(skuGroups).map(skuId => {
+    const configs = skuGroups[skuId];
+    return configs.reduce(
+      (min, current) => current.totalCostPerUnit < min.totalCostPerUnit ? current : min,
+      configs[0]
+    );
+  });
+};
 
 // Container types and their dimensions in cm
 export const CONTAINER_TYPES = {
@@ -380,25 +261,48 @@ export const CONTAINER_TYPES = {
   '20STD': { name: "20' Standard", length: 590, width: 235, height: 239, volume: 33 }  // volume in m³
 };
 
-// Define container cost structure with default values
+// Default container costs
 export const DEFAULT_CONTAINER_COSTS = {
   freight: 4000,
-  terminalHandling: 450,
-  portProcessing: 150,
+  terminalHandling: 185,
+  portProcessing: 24.5,
+  documentationFee: 65,
+  containerInspection: 20,
+  customsClearance: 145,
+  portCharges: 32,
+  defermentFee: 30,
   haulage: 835,
-  unloading: 500
+  containerUnloading: 500
 };
 
-// Calculate total container cost
-export const calculateTotalContainerCost = (
-  containerCosts: Record<string, number>, 
-  totalContainers: number
-): number => {
-  const perContainerCost = Object.values(containerCosts).reduce(
-    (sum: number, cost: number) => sum + cost, 
-    0
-  );
-  return perContainerCost * totalContainers;
+// The following functions are added for compatibility with useContainerCalculation.ts
+// even if we're not using them in Part 2
+
+// Legacy function for compatibility
+export const calculateCostComponents = (
+  quantity: number, 
+  cartonId: number | null, 
+  selectedCartonId: number, 
+  candidateCartons: CartonType[], 
+  costConfig: CostConfigType
+): any => {
+  // Placeholder implementation to maintain compatibility
+  const carton = candidateCartons.find(c => c.id === (cartonId || selectedCartonId));
+  if (!carton) return null;
+  
+  const unitsPerCarton = carton.unitsPerCarton;
+  const cartonsPerPallet = carton.cartonsPerPallet;
+  const totalCartons = Math.ceil(quantity / unitsPerCarton);
+  const totalPallets = Math.ceil(totalCartons / cartonsPerPallet);
+  
+  return {
+    quantity,
+    totalCartons,
+    totalPallets,
+    physicalPallets: totalPallets,
+    carton,
+    transportMode: costConfig.transportMode
+  };
 };
 
 // Normalize volume percentages to ensure they sum to 100%
@@ -409,6 +313,9 @@ export const normalizeVolumePercentages = <T extends { volumePercentage: number 
   
   // Create a deep copy to avoid mutating the original objects
   const result = items.map(item => ({...item}));
+  
+  // Calculate total percentage
+  const total = result.reduce((sum, item) => sum + (item.volumePercentage || 0), 0);
   
   // If all percentages are 0 or NaN, distribute evenly
   const allZero = result.every(item => !item.volumePercentage || isNaN(item.volumePercentage));
@@ -423,26 +330,13 @@ export const normalizeVolumePercentages = <T extends { volumePercentage: number 
     }));
   }
   
-  // Otherwise adjust proportionally
-  const total = result.reduce((sum: number, item: T) => sum + (item.volumePercentage || 0), 0);
+  // If total is already close to 100%, return as is
+  if (Math.abs(total - 100) < 0.1) return result;
   
-  if (Math.abs(total - 100) < 0.1) return result; // Already close to 100%
-  
-  // Proportionally adjust all items
+  // Otherwise, scale all percentages proportionally
   const factor = 100 / total;
-  const adjusted = result.map(item => ({
+  return result.map(item => ({
     ...item,
-    volumePercentage: parseFloat((item.volumePercentage * factor).toFixed(1))
+    volumePercentage: parseFloat(((item.volumePercentage || 0) * factor).toFixed(1))
   }));
-  
-  // Fix any remaining rounding errors by adjusting the first item
-  const newTotal = adjusted.reduce((sum: number, item: T) => sum + item.volumePercentage, 0);
-  if (Math.abs(newTotal - 100) > 0.01 && adjusted.length > 0) {
-    adjusted[0] = {
-      ...adjusted[0],
-      volumePercentage: parseFloat((adjusted[0].volumePercentage + (100 - newTotal)).toFixed(1))
-    };
-  }
-  
-  return adjusted;
 };

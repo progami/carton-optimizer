@@ -1,9 +1,9 @@
 // src/components/Navigation.tsx
-import { FC } from 'react';
+import React, { FC } from 'react';
 import { Link } from 'react-router-dom';
 
 // Define the section types
-type SectionType = 'input' | 'part2a' | 'part2b' | 'part3';
+type SectionType = 'input' | 'part2';
 
 // Define the props interface
 interface NavigationProps {
@@ -30,28 +30,14 @@ const Navigation: FC<NavigationProps> = ({ activeSection, setActiveSection }) =>
             onClick={navigateTo('input')}
             className={`px-3 py-2 rounded-md ${activeSection === 'input' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
-            Input
+            Part 1: Input
           </Link>
           <Link
-            to="/part2a"
-            onClick={navigateTo('part2a')}
-            className={`px-3 py-2 rounded-md ${activeSection === 'part2a' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+            to="/part2"
+            onClick={navigateTo('part2')}
+            className={`px-3 py-2 rounded-md ${activeSection === 'part2' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
-            Analysis
-          </Link>
-          <Link
-            to="/part2b"
-            onClick={navigateTo('part2b')}
-            className={`px-3 py-2 rounded-md ${activeSection === 'part2b' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
-          >
-            Optimization
-          </Link>
-          <Link
-            to="/part3"
-            onClick={navigateTo('part3')}
-            className={`px-3 py-2 rounded-md ${activeSection === 'part3' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
-          >
-            Container
+            Part 2: Cost Analysis
           </Link>
         </div>
       </div>
